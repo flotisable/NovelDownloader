@@ -82,7 +82,7 @@ for my $indexUrl (@indexUrls)
        {
           if( my ($content) = /$plaintextPattern/ )
           {
-            print "$content\n";
+            print "$content\n\n";
           }
        }
     }
