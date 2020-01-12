@@ -54,8 +54,9 @@ for my $indexUrl (@indexUrls)
 
   my $novel = parseIndex( $fileT );
 
-  print "#TITLE: ", $novel->title(), "\n";
-  print "#AUTHOR: ", $novel->author(), "\n";
+  print "#+TITLE: ", $novel->title(), "\n";
+  print "#+AUTHOR: ", $novel->author(), "\n";
+  print "#+OPTIONS: toc:nil num:nil\n";
 
   for my $book (@{$novel->books()})
   {
