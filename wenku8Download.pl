@@ -4,9 +4,26 @@ use warnings;
 
 # packages
 use HTTP::Tiny;
-use Encode      qw/from_to/;
-use File::Temp  qw/tempfile/;
+use Encode          qw/from_to/;
+use File::Temp      qw/tempfile/;
+use Class::Struct;
 # end packages
+
+# structure declarations
+struct( Novel =>  {
+                    title   => '$',
+                    author  => '$',
+                    books   => '@',
+                  } );
+struct( Book => {
+                  name      => '$',
+                  chapters  => '@',
+                } );
+struct( Chapter =>  {
+                      name  => '$',
+                      url   => '$',
+                    } );
+# end structure declarations
 
 # function declarations
 sub parseIndex;
@@ -31,7 +48,20 @@ for my $indexUrl (@indexUrls)
 
   print $fileT $response->{content};
 
-  parseIndex( $fileT->filename() );
+  my $novel = parseIndex( $fileT->filename() );
+
+  print "標題: ", $novel->title(), "\n";
+  print "作者: ", $novel->author(), "\n";
+
+  for my $book (@{$novel->books()})
+  {
+    print $book->name(), "\n";
+
+    for my $chapter (@{$book->chapters()})
+    {
+       print $chapter->name(), ": ", $chapter->url(), "\n";
+    }
+  }
 }
 # end main procedure
 
@@ -45,13 +75,16 @@ sub parseIndex
 
   my $filename = shift;
 
+  my $novel = Novel->new();
+  my $book;
+
   open my $fh, '<', $filename;
 
   while( <$fh> )
   {
     if( my ($title) = /$titlePattern/ )
     {
-      print "標題: $title\n";
+      $novel->title( $title );
       last;
     }
   }
@@ -59,23 +92,30 @@ sub parseIndex
   {
     if( my ($author) = /$authorPattern/ )
     {
-      print "作者: $author\n";
+      $novel->author( $author );
       last;
     }
   }
   while( <$fh> )
   {
-    if( my ($book) = /$bookPattern/ )
+    if( my ($bookname) = /$bookPattern/ )
     {
-      print "$book\n";
+      $book = Book->new( name => $bookname );
+      push @{$novel->books()}, $book;
       next;
     }
     if( my ($url, $chapter) = /$chapterPattern/ )
     {
-      print "$chapter: $url\n";
+      my $chapter = Chapter->new(
+                      name  => $chapter,
+                      url   => $url,
+                    );
+      push @{$book->chapters()}, $chapter;
       next;
     }
   }
   close $fh;
+
+  return $novel;
 }
 # end function definitions
