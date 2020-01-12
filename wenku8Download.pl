@@ -29,6 +29,8 @@ struct( Chapter =>  {
 sub parseIndex;
 # end function declarations
 
+my $plaintextPattern = qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/;
+
 # command line arguments
 my @indexUrls = @ARGV;
 # end command line arguments
@@ -45,21 +47,43 @@ for my $indexUrl (@indexUrls)
   from_to( $response->{content}, 'cp936', 'utf8' );
 
   my $fileT = File::Temp->new();
+  my $pos   = $fileT->getpos();
 
   print $fileT $response->{content};
+  $fileT->setpos($pos);
 
-  my $novel = parseIndex( $fileT->filename() );
+  my $novel = parseIndex( $fileT );
 
-  print "標題: ", $novel->title(), "\n";
-  print "作者: ", $novel->author(), "\n";
+  print "#TITLE: ", $novel->title(), "\n";
+  print "#AUTHOR: ", $novel->author(), "\n";
 
   for my $book (@{$novel->books()})
   {
-    print $book->name(), "\n";
+    print "* ", $book->name(), "\n";
 
     for my $chapter (@{$book->chapters()})
     {
-       print $chapter->name(), ": ", $chapter->url(), "\n";
+       $response = $http->get( $chapter->url() );
+
+       die "$indexUrl Fail!\n" unless $response->{success};
+
+       from_to( $response->{content}, 'cp936', 'utf8' );
+
+       print "** ", $chapter->name(), "\n";
+
+       $fileT = File::Temp->new();
+       $pos   = $fileT->getpos();
+
+       print $fileT $response->{content};
+       $fileT->setpos($pos);
+
+       while( <$fileT> )
+       {
+          if( my ($content) = /$plaintextPattern/ )
+          {
+            print "$content\n";
+          }
+       }
     }
   }
 }
@@ -73,12 +97,10 @@ sub parseIndex
   my $bookPattern     = qr/<td class="vcss" colspan="4">(.+)<\/td>/;
   my $chapterPattern  = qr/<td class="ccss"><a href="(.+)">(.+)<\/a><\/td>/;
 
-  my $filename = shift;
+  my $fh = shift;
 
   my $novel = Novel->new();
   my $book;
-
-  open my $fh, '<', $filename;
 
   while( <$fh> )
   {
@@ -114,8 +136,6 @@ sub parseIndex
       next;
     }
   }
-  close $fh;
-
   return $novel;
 }
 # end function definitions
