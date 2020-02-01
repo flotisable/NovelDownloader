@@ -1,12 +1,18 @@
 #!/usr/bin/perl
+# pragmas
 use strict;
 use warnings;
+use utf8;
+
+binmode STDOUT, ":encoding(utf8)";
+# end pragmas
 
 # packages
 use HTTP::Tiny;
-use Encode          qw/from_to/;
 use File::Temp      qw/tempfile/;
 use Class::Struct;
+
+use Encode::HanConvert;
 # end packages
 
 # structure declarations
@@ -44,11 +50,12 @@ for my $indexUrl (@indexUrls)
 
   die "$indexUrl Fail!\n" unless $response->{success};
 
-  from_to( $response->{content}, 'cp936', 'utf8' );
+  gb_to_trad( $response->{content} );
 
   my $fileT = File::Temp->new();
   my $pos   = $fileT->getpos();
 
+  binmode $fileT, ":encoding(utf8)";
   print $fileT $response->{content};
   $fileT->setpos($pos);
 
@@ -68,13 +75,14 @@ for my $indexUrl (@indexUrls)
 
        die "$indexUrl Fail!\n" unless $response->{success};
 
-       from_to( $response->{content}, 'cp936', 'utf8' );
+       gb_to_trad( $response->{content} );
 
        print "** ", $chapter->name(), "\n";
 
        $fileT = File::Temp->new();
        $pos   = $fileT->getpos();
 
+       binmode $fileT, ":encoding(utf8)";
        print $fileT $response->{content};
        $fileT->setpos($pos);
 
