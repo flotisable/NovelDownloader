@@ -32,23 +32,61 @@ struct( Chapter =>  {
 # end structure declarations
 
 # function declarations
+sub main;
+sub fetchUrlToTempFile;
 sub parseIndex;
 # end function declarations
 
+# global variables
 my $plaintextPattern = qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/;
 
-# command line arguments
-my @indexUrls = @ARGV;
-# end command line arguments
-
-# main procedure
 my $http = HTTP::Tiny->new();
+# end global variables
 
-for my $indexUrl (@indexUrls)
+main();
+
+# function definitions
+sub main()
 {
-  my $response = $http->get( $indexUrl );
+  # command line arguments
+  my @indexUrls = @ARGV;
+  # end command line arguments
 
-  die "$indexUrl Fail!\n" unless $response->{success};
+  for my $indexUrl (@indexUrls)
+  {
+    my $novel = parseIndex( fetchUrlToTempFile( $indexUrl ) );
+
+    print "#+TITLE: ", $novel->title(), "\n";
+    print "#+AUTHOR: ", $novel->author(), "\n";
+    print "#+OPTIONS: toc:nil num:nil\n";
+
+    for my $book (@{$novel->books()})
+    {
+      print "* ", $book->name(), "\n";
+
+      for my $chapter (@{$book->chapters()})
+      {
+         my $fileT = fetchUrlToTempFile( $chapter->url() );
+
+         while( <$fileT> )
+         {
+            if( my ($content) = /$plaintextPattern/ )
+            {
+              print "$content\n\n";
+            }
+         }
+      }
+    }
+  }
+}
+
+sub fetchUrlToTempFile
+{
+  my $url = shift;
+
+  my $response  = $http->get( $url );
+
+  die "$url Fail!\n" unless $response->{success};
 
   gb_to_trad( $response->{content} );
 
@@ -59,46 +97,9 @@ for my $indexUrl (@indexUrls)
   print $fileT $response->{content};
   $fileT->setpos($pos);
 
-  my $novel = parseIndex( $fileT );
-
-  print "#+TITLE: ", $novel->title(), "\n";
-  print "#+AUTHOR: ", $novel->author(), "\n";
-  print "#+OPTIONS: toc:nil num:nil\n";
-
-  for my $book (@{$novel->books()})
-  {
-    print "* ", $book->name(), "\n";
-
-    for my $chapter (@{$book->chapters()})
-    {
-       $response = $http->get( $chapter->url() );
-
-       die "$indexUrl Fail!\n" unless $response->{success};
-
-       gb_to_trad( $response->{content} );
-
-       print "** ", $chapter->name(), "\n";
-
-       $fileT = File::Temp->new();
-       $pos   = $fileT->getpos();
-
-       binmode $fileT, ":encoding(utf8)";
-       print $fileT $response->{content};
-       $fileT->setpos($pos);
-
-       while( <$fileT> )
-       {
-          if( my ($content) = /$plaintextPattern/ )
-          {
-            print "$content\n\n";
-          }
-       }
-    }
-  }
+  return $fileT;
 }
-# end main procedure
 
-# function definitions
 sub parseIndex
 {
   my $titlePattern    = qr/<div id="title">(.+)<\/div>/;
