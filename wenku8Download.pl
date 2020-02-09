@@ -13,6 +13,7 @@ use File::Temp      qw/tempfile/;
 use Class::Struct;
 
 use Encode::HanConvert;
+use EBook::EPUB;
 # end packages
 
 # structure declarations
@@ -36,6 +37,7 @@ sub main;
 sub fetchUrlToTempFile;
 sub parseIndex;
 sub outputOrgFormat;
+sub outputEpubFormat;
 # end function declarations
 
 # global variables
@@ -57,7 +59,8 @@ sub main()
   {
     my $novel = parseIndex( fetchUrlToTempFile( $indexUrl ) );
 
-    outputOrgFormat( $novel );
+    #outputOrgFormat( $novel );
+    outputEpubFormat( $novel );
   }
 }
 
@@ -157,5 +160,68 @@ sub outputOrgFormat
        }
     }
   }
+}
+
+sub outputEpubFormat
+{
+  my $novel = shift;
+
+  my $epub      = EBook::EPUB->new();
+  my $filename  = "index.xhtml";
+  my $order     = 1;
+
+  # setup meta data
+  $epub->add_title    ( $novel->title ()  );
+  $epub->add_author   ( $novel->author()  );
+  $epub->add_language ( 'zh_TW'           );
+  # end setup meta data
+
+  my $rootContent = "<body><h1>" . $novel->title() . "</h1></body>";
+  my $root        =  $epub->add_navpoint(
+                                           label       => $novel->title(),
+                                           id          => $epub->add_xhtml( $filename, $rootContent ),
+                                           content     => $filename,
+                                           play_order  => $order++,
+                     );
+
+  while( my ($i, $book) = each @{$novel->books()} )
+  {
+     $filename = "book" . ( $i + 1 ) . ".xhtml";
+
+     my $bookContent  = "<body><h2>" . $book->name() . "</h2><body>";
+     my $bookNavPoint = $root->add_navpoint(
+                                              label       => $book->name(),
+                                              id          => $epub->add_xhtml( $filename, $bookContent ),
+                                              content     => $filename,
+                                              play_order  => $order++,
+                        );
+
+     while( my ($j, $chapter) = each @{$book->chapters()} )
+     {
+        my $fileT   = fetchUrlToTempFile( $chapter->url() );
+        my $content = "<body>\n" .
+                      "<h3>" . $chapter->name() . "</h3><br />\n" .
+                      "<br />\n";
+
+        $filename = "chapter" . ( $j + 1 ) . ".xhtml";
+
+        while( <$fileT> )
+        {
+          if( my ($text) = /$plaintextPattern/ )
+          {
+            $content .= "&nbsp;" x 4 . "$text<br />\n<br />\n";
+          }
+        }
+        $content .= "</body>";
+
+        my $chapterNavPoint = $bookNavPoint->add_navpoint(
+                                                            label       => $chapter->name(),
+                                                            id          => $epub->add_xhtml( $filename, $content ),
+                                                            content     => $filename,
+                                                            play_order  => $order++,
+                              );
+     }
+  }
+  $epub->pack_zip( "test.epub" );
 }
 # end function definitions
