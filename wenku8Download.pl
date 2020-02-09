@@ -11,10 +11,52 @@ binmode STDOUT, ":encoding(utf8)";
 use HTTP::Tiny;
 use File::Temp      qw/tempfile/;
 use Class::Struct;
+use Getopt::Long;
+use Pod::Usage;
 
 use Encode::HanConvert;
 use EBook::EPUB;
 # end packages
+
+# documents
+=head1 NAME
+
+B<wenku8Download.pl> - download novel from www.wenku8.net
+
+=head1 SYNOPSIS
+
+B<wenku8Download.pl> [options] <url>
+
+=head1 OPTIONS
+
+=over
+
+=item B<-o>, B<--output> I<<output file name>>
+
+set the output file name of dowloaded novel.
+Must be specified when output B<epub> format.
+
+=item B<-f>, B<--format> I<<format name>>
+
+set the output format of downloaded novel.
+The supported format are shown below:
+
+=over
+
+=item B<org>
+
+=item B<epub>
+
+=back
+
+=back
+
+=item B<-h>, B<--help>
+
+print help message.
+
+=cut
+# end documents
 
 # structure declarations
 struct( Novel =>  {
@@ -51,6 +93,16 @@ main();
 # function definitions
 sub main()
 {
+  my $outputFileName;
+  my $outputFormat    = "org";
+
+  GetOptions(
+              'output|o=s'  => \$outputFileName,
+              'format|f=s'  => \$outputFormat,
+              'h'           => sub { pod2usage();   },
+              'help'        => sub { pod2usage(1);  },
+  ) or die "Invalid Option!";
+
   # command line arguments
   my @indexUrls = @ARGV;
   # end command line arguments
@@ -59,8 +111,18 @@ sub main()
   {
     my $novel = parseIndex( fetchUrlToTempFile( $indexUrl ) );
 
-    #outputOrgFormat( $novel );
-    outputEpubFormat( $novel );
+    if( $outputFormat eq "org" )
+    {
+      outputOrgFormat( $novel, $outputFileName );
+      next;
+    }
+
+    if( $outputFormat eq "epub" )
+    {
+      die "Forget to specify output file name!" unless defined $outputFileName;
+
+      outputEpubFormat( $novel, $outputFileName );
+    }
   }
 }
 
@@ -135,7 +197,17 @@ sub parseIndex
 
 sub outputOrgFormat
 {
-  my $novel = shift;
+  my ($novel, $outputFileName) = @_;
+
+  my $fh;
+
+  if( defined $outputFileName )
+  {
+    open $fh, ">", $outputFileName;
+
+    binmode $fh, ":encoding(utf8)";
+    select $fh;
+  }
 
   print "#+TITLE: ", $novel->title(), "\n";
   print "#+AUTHOR: ", $novel->author(), "\n";
@@ -160,11 +232,12 @@ sub outputOrgFormat
        }
     }
   }
+  close $fh;
 }
 
 sub outputEpubFormat
 {
-  my $novel = shift;
+  my ($novel, $outputFileName) = @_;
 
   my $epub      = EBook::EPUB->new();
   my $filename  = "index.xhtml";
@@ -235,6 +308,6 @@ sub outputEpubFormat
                               );
      }
   }
-  $epub->pack_zip( "test.epub" );
+  $epub->pack_zip( $outputFileName );
 }
 # end function definitions
