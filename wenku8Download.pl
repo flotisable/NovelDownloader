@@ -35,6 +35,7 @@ struct( Chapter =>  {
 sub main;
 sub fetchUrlToTempFile;
 sub parseIndex;
+sub outputOrgFormat;
 # end function declarations
 
 # global variables
@@ -56,27 +57,7 @@ sub main()
   {
     my $novel = parseIndex( fetchUrlToTempFile( $indexUrl ) );
 
-    print "#+TITLE: ", $novel->title(), "\n";
-    print "#+AUTHOR: ", $novel->author(), "\n";
-    print "#+OPTIONS: toc:nil num:nil\n";
-
-    for my $book (@{$novel->books()})
-    {
-      print "* ", $book->name(), "\n";
-
-      for my $chapter (@{$book->chapters()})
-      {
-         my $fileT = fetchUrlToTempFile( $chapter->url() );
-
-         while( <$fileT> )
-         {
-            if( my ($content) = /$plaintextPattern/ )
-            {
-              print "$content\n\n";
-            }
-         }
-      }
-    }
+    outputOrgFormat( $novel );
   }
 }
 
@@ -147,5 +128,34 @@ sub parseIndex
     }
   }
   return $novel;
+}
+
+sub outputOrgFormat
+{
+  my $novel = shift;
+
+  print "#+TITLE: ", $novel->title(), "\n";
+  print "#+AUTHOR: ", $novel->author(), "\n";
+  print "#+OPTIONS: toc:nil num:nil\n";
+
+  for my $book (@{$novel->books()})
+  {
+    print "* ", $book->name(), "\n";
+
+    for my $chapter (@{$book->chapters()})
+    {
+       my $fileT = fetchUrlToTempFile( $chapter->url() );
+
+       print "** ", $chapter->name(), "\n";
+
+       while( <$fileT> )
+       {
+          if( my ($content) = /$plaintextPattern/ )
+          {
+            print "$content\n\n";
+          }
+       }
+    }
+  }
 }
 # end function definitions
