@@ -176,7 +176,11 @@ sub outputEpubFormat
   $epub->add_language ( 'zh_TW'           );
   # end setup meta data
 
-  my $rootContent = "<body><h1>" . $novel->title() . "</h1></body>";
+  my $rootContent =
+    '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
+    '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
+    '<head><title></title></head>' . "\n" .
+    '<body><h1>' . $novel->title() . '</h1></body></html>';
   my $root        =  $epub->add_navpoint(
                                            label       => $novel->title(),
                                            id          => $epub->add_xhtml( $filename, $rootContent ),
@@ -188,7 +192,11 @@ sub outputEpubFormat
   {
      $filename = "book" . ( $i + 1 ) . ".xhtml";
 
-     my $bookContent  = "<body><h2>" . $book->name() . "</h2><body>";
+     my $bookContent  =
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
+        '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
+        '<head><title></title></head>' . "\n" .
+        '<body><h2>' . $book->name() . '</h2></body></html>';
      my $bookNavPoint = $root->add_navpoint(
                                               label       => $book->name(),
                                               id          => $epub->add_xhtml( $filename, $bookContent ),
@@ -199,20 +207,25 @@ sub outputEpubFormat
      while( my ($j, $chapter) = each @{$book->chapters()} )
      {
         my $fileT   = fetchUrlToTempFile( $chapter->url() );
-        my $content = "<body>\n" .
-                      "<h3>" . $chapter->name() . "</h3><br />\n" .
-                      "<br />\n";
+        my $content =
+            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
+            '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
+            '<head><title></title></head>' . "\n" .
+            "<body>\n" .
+            '<h3>' . $chapter->name() . '</h3>' . "\n" .
+            '<p><br />' . "\n";
 
-        $filename = "chapter" . ( $j + 1 ) . ".xhtml";
+        $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
 
         while( <$fileT> )
         {
           if( my ($text) = /$plaintextPattern/ )
           {
-            $content .= "&nbsp;" x 4 . "$text<br />\n<br />\n";
+            $content .= '&nbsp;' x 4 . "$text<br />\n" .
+                        "<br />\n";
           }
         }
-        $content .= "</body>";
+        $content .= '</p></body></html>';
 
         my $chapterNavPoint = $bookNavPoint->add_navpoint(
                                                             label       => $chapter->name(),
