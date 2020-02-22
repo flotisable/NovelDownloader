@@ -16,6 +16,8 @@ use Pod::Usage;
 
 use Encode::HanConvert;
 use EBook::EPUB;
+
+use XHTML::Writer;
 # end packages
 
 # documents
@@ -239,6 +241,7 @@ sub outputEpubFormat
 {
   my ($novel, $outputFileName) = @_;
 
+  my $xhtml;
   my $epub      = EBook::EPUB->new();
   my $filename  = "index.xhtml";
   my $order     = 1;
@@ -249,64 +252,67 @@ sub outputEpubFormat
   $epub->add_language ( 'zh_TW'           );
   # end setup meta data
 
-  my $rootContent =
-    '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
-    '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
-    '<head><title></title></head>' . "\n" .
-    '<body><h1>' . $novel->title() . '</h1></body></html>';
-  my $root        =  $epub->add_navpoint(
-                                           label       => $novel->title(),
-                                           id          => $epub->add_xhtml( $filename, $rootContent ),
-                                           content     => $filename,
-                                           play_order  => $order++,
-                     );
+  $xhtml = XHTML::Writer->new( OUTPUT => 'self', NEWLINES => 1 );
+  $xhtml->startTag( 'h1' );
+  $xhtml->characters( $novel->title() );
+  $xhtml->endTag  ( 'h1' );
+  $xhtml->end     ();
+
+  my $root  = $epub->add_navpoint(
+                                    label       => $novel->title(),
+                                    id          => $epub->add_xhtml( $filename, $xhtml ),
+                                    content     => $filename,
+                                    play_order  => $order++,
+              );
 
   while( my ($i, $book) = each @{$novel->books()} )
   {
-     $filename = "book" . ( $i + 1 ) . ".xhtml";
+    $filename = "book" . ( $i + 1 ) . ".xhtml";
+    $xhtml    = XHTML::Writer->new( OUTPUT => 'self' );
+    $xhtml->startTag( 'h2' );
+    $xhtml->characters( $book->name() );
+    $xhtml->endTag  ( 'h2' );
+    $xhtml->end     ();
 
-     my $bookContent  =
-        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
-        '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
-        '<head><title></title></head>' . "\n" .
-        '<body><h2>' . $book->name() . '</h2></body></html>';
-     my $bookNavPoint = $root->add_navpoint(
+    my $bookNavPoint  = $root->add_navpoint(
                                               label       => $book->name(),
-                                              id          => $epub->add_xhtml( $filename, $bookContent ),
+                                              id          => $epub->add_xhtml( $filename, $xhtml ),
                                               content     => $filename,
                                               play_order  => $order++,
                         );
 
-     while( my ($j, $chapter) = each @{$book->chapters()} )
-     {
-        my $fileT   = fetchUrlToTempFile( $chapter->url() );
-        my $content =
-            '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' . "\n" .
-            '<html xmlns="http://www.w3.org/1999/xhtml">' . "\n" .
-            '<head><title></title></head>' . "\n" .
-            "<body>\n" .
-            '<h3>' . $chapter->name() . '</h3>' . "\n" .
-            '<p><br />' . "\n";
+    while( my ($j, $chapter) = each @{$book->chapters()} )
+    {
+      my $fileT = fetchUrlToTempFile( $chapter->url() );
 
-        $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
+      $xhtml = XHTML::Writer->new( OUTPUT => 'self', UNSAFE => 1 );
+      $xhtml->startTag( 'h3'  );
+      $xhtml->characters( $chapter->name() );
+      $xhtml->endTag  ( 'h3'  );
+      $xhtml->startTag( 'p'   );
+      $xhtml->emptyTag( 'br'  );
 
-        while( <$fileT> )
+      $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
+
+      while( <$fileT> )
+      {
+        if( my ($text) = /$plaintextPattern/ )
         {
-          if( my ($text) = /$plaintextPattern/ )
-          {
-            $content .= '&nbsp;' x 4 . "$text<br />\n" .
-                        "<br />\n";
-          }
+          $xhtml->raw( '&nbsp;' x 4 . "$text" );
+          $xhtml->emptyTag( 'br' );
+          $xhtml->emptyTag( 'br' );
         }
-        $content .= '</p></body></html>';
+      }
+      $xhtml->endTag( 'p' );
+      $xhtml->end   ();
 
-        my $chapterNavPoint = $bookNavPoint->add_navpoint(
-                                                            label       => $chapter->name(),
-                                                            id          => $epub->add_xhtml( $filename, $content ),
-                                                            content     => $filename,
-                                                            play_order  => $order++,
-                              );
-     }
+      $bookNavPoint->add_navpoint (
+                                    label       => $chapter->name(),
+                                    id          => $epub->add_xhtml( $filename, $xhtml ),
+                                    content     => $filename,
+                                    play_order  => $order++,
+                                  );
+    }
   }
   $epub->pack_zip( $outputFileName );
 }
