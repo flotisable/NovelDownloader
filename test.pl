@@ -60,8 +60,8 @@ sub testEpubExport()
 
   system "$testProgram -f epub -o " . $file->filename() . " " . TEST_URL;
 
-  unzip( $file->filename()  => $tmpBuffer->filename() ) or die "Unzip Fail: $UnzipError\n";
-  unzip( $epubTestFile      => $refBuffer->filename() ) or die "Unzip Fail: $UnzipError\n";
+  unzip( $file->filename()  => $tmpBuffer->filename(), MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
+  unzip( $epubTestFile      => $refBuffer->filename(), MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
 
   compareExportFile( $refBuffer->filename(), $tmpBuffer->filename(), 'Epub' );
 }
@@ -70,7 +70,24 @@ sub compareExportFile()
 {
   my ( $refFile, $testFile, $format ) = @_;
 
-  if( compare_text( $refFile, $testFile ) )
+  my $uuidPattern     = qr/uuid:[-[:alnum:]]+/;
+  my $uuidLinePattern = qr/(.+)${uuidPattern}(.+)/;
+  my $compareFunction = sub {
+                          if( $_[0] =~ /uuid/ )
+                          {
+                            my @ref   = ( $_[0] =~ /$uuidLinePattern/ );
+                            my @test  = ( $_[1] =~ /$uuidLinePattern/ );
+
+                            while( my ( $i, $ref ) = each @ref )
+                            {
+                              return 1 if $ref ne $test[$i];
+                            }
+                            return 0;
+                          }
+                          return $_[0] ne $_[1];
+                        };
+
+  if( compare_text( $refFile, $testFile, $compareFunction ) )
   {
     die times . "s: $format Format Test Fail!\n";
   }

@@ -252,11 +252,9 @@ sub outputEpubFormat
   $epub->add_language ( 'zh_TW'           );
   # end setup meta data
 
-  $xhtml = XHTML::Writer->new( OUTPUT => 'self', NEWLINES => 1 );
-  $xhtml->startTag( 'h1' );
-  $xhtml->characters( $novel->title() );
-  $xhtml->endTag  ( 'h1' );
-  $xhtml->end     ();
+  $xhtml = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
+  $xhtml->dataElement( 'h1', $novel->title() );
+  $xhtml->end();
 
   my $root  = $epub->add_navpoint(
                                     label       => $novel->title(),
@@ -268,11 +266,9 @@ sub outputEpubFormat
   while( my ($i, $book) = each @{$novel->books()} )
   {
     $filename = "book" . ( $i + 1 ) . ".xhtml";
-    $xhtml    = XHTML::Writer->new( OUTPUT => 'self' );
-    $xhtml->startTag( 'h2' );
-    $xhtml->characters( $book->name() );
-    $xhtml->endTag  ( 'h2' );
-    $xhtml->end     ();
+    $xhtml    = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
+    $xhtml->dataElement( 'h2', $book->name() );
+    $xhtml->end();
 
     my $bookNavPoint  = $root->add_navpoint(
                                               label       => $book->name(),
@@ -285,11 +281,9 @@ sub outputEpubFormat
     {
       my $fileT = fetchUrlToTempFile( $chapter->url() );
 
-      $xhtml = XHTML::Writer->new( OUTPUT => 'self', UNSAFE => 1 );
-      $xhtml->startTag( 'h3'  );
-      $xhtml->characters( $chapter->name() );
-      $xhtml->endTag  ( 'h3'  );
-      $xhtml->startTag( 'p'   );
+      $xhtml = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2, UNSAFE => 1 );
+      $xhtml->dataElement( 'h3', $chapter->name() );
+      $xhtml->startTag( 'p' );
       $xhtml->emptyTag( 'br'  );
 
       $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
