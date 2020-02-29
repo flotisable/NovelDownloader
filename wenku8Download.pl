@@ -2,21 +2,17 @@
 # pragmas
 use strict;
 use warnings;
-use utf8;
 
 binmode STDOUT, ":encoding(utf8)";
 # end pragmas
 
 # packages
-use HTTP::Tiny;
-use File::Temp      qw/tempfile/;
-use Class::Struct;
 use Getopt::Long;
 use Pod::Usage;
 
-use Encode::HanConvert;
 use EBook::EPUB;
 
+use Downloader::Wenku8Downloader;
 use XHTML::Writer;
 # end packages
 
@@ -60,40 +56,16 @@ print help message.
 =cut
 # end documents
 
-# structure declarations
-struct( Novel =>  {
-                    title   => '$',
-                    author  => '$',
-                    books   => '@',
-                  } );
-struct( Book => {
-                  name      => '$',
-                  chapters  => '@',
-                } );
-struct( Chapter =>  {
-                      name  => '$',
-                      url   => '$',
-                    } );
-# end structure declarations
-
 # function declarations
 sub main;
-sub fetchUrlToTempFile;
-sub parseIndex;
 sub outputOrgFormat;
 sub outputEpubFormat;
 # end function declarations
 
-# global variables
-my $plaintextPattern = qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/;
-
-my $http = HTTP::Tiny->new();
-# end global variables
-
 main();
 
 # function definitions
-sub main()
+sub main
 {
   my $outputFileName;
   my $outputFormat    = "org";
@@ -109,13 +81,15 @@ sub main()
   my @indexUrls = @ARGV;
   # end command line arguments
 
-  for my $indexUrl (@indexUrls)
+  my $downloader = Downloader::Wenku8Downloader->new();
+
+  for my $indexUrl ( @indexUrls )
   {
-    my $novel = parseIndex( fetchUrlToTempFile( $indexUrl ) );
+    my $novel = $downloader->parseIndex( $indexUrl );
 
     if( $outputFormat eq "org" )
     {
-      outputOrgFormat( $novel, $outputFileName );
+      outputOrgFormat( $downloader, $novel, $outputFileName );
       next;
     }
 
@@ -123,83 +97,14 @@ sub main()
     {
       die "Forget to specify output file name!" unless defined $outputFileName;
 
-      outputEpubFormat( $novel, $outputFileName );
+      outputEpubFormat( $downloader, $novel, $outputFileName );
     }
   }
-}
-
-sub fetchUrlToTempFile
-{
-  my $url = shift;
-
-  my $response  = $http->get( $url );
-
-  die "$url Fail!\n" unless $response->{success};
-
-  gb_to_trad( $response->{content} );
-
-  my $fileT = File::Temp->new();
-  my $pos   = $fileT->getpos();
-
-  binmode $fileT, ":encoding(utf8)";
-  print $fileT $response->{content};
-  $fileT->setpos($pos);
-
-  return $fileT;
-}
-
-sub parseIndex
-{
-  my $titlePattern    = qr/<div id="title">(.+)<\/div>/;
-  my $authorPattern   = qr/<div id="info">作者：(.+)<\/div>/;
-  my $bookPattern     = qr/<td class="vcss" colspan="4">(.+)<\/td>/;
-  my $chapterPattern  = qr/<td class="ccss"><a href="(.+)">(.+)<\/a><\/td>/;
-
-  my $fh = shift;
-
-  my $novel = Novel->new();
-  my $book;
-
-  while( <$fh> )
-  {
-    if( my ($title) = /$titlePattern/ )
-    {
-      $novel->title( $title );
-      last;
-    }
-  }
-  while( <$fh> )
-  {
-    if( my ($author) = /$authorPattern/ )
-    {
-      $novel->author( $author );
-      last;
-    }
-  }
-  while( <$fh> )
-  {
-    if( my ($bookname) = /$bookPattern/ )
-    {
-      $book = Book->new( name => $bookname );
-      push @{$novel->books()}, $book;
-      next;
-    }
-    if( my ($url, $chapter) = /$chapterPattern/ )
-    {
-      my $chapter = Chapter->new(
-                      name  => $chapter,
-                      url   => $url,
-                    );
-      push @{$book->chapters()}, $chapter;
-      next;
-    }
-  }
-  return $novel;
 }
 
 sub outputOrgFormat
 {
-  my ($novel, $outputFileName) = @_;
+  my ( $downloader, $novel, $outputFileName ) = @_;
 
   my $fh;
 
@@ -215,23 +120,16 @@ sub outputOrgFormat
   print "#+AUTHOR: ", $novel->author(), "\n";
   print "#+OPTIONS: toc:nil num:nil\n";
 
-  for my $book (@{$novel->books()})
+  for my $book ( @{$novel->books()} )
   {
     print "* ", $book->name(), "\n";
 
     for my $chapter (@{$book->chapters()})
     {
-       my $fileT = fetchUrlToTempFile( $chapter->url() );
+       my @contents = $downloader->parseContent( $chapter->url() );
 
        print "** ", $chapter->name(), "\n";
-
-       while( <$fileT> )
-       {
-          if( my ($content) = /$plaintextPattern/ )
-          {
-            print "$content\n\n";
-          }
-       }
+       print "$_\n\n" for @contents;
     }
   }
   close $fh;
@@ -239,9 +137,9 @@ sub outputOrgFormat
 
 sub outputEpubFormat
 {
-  my ($novel, $outputFileName) = @_;
+  my ( $downloader, $novel, $outputFileName ) = @_;
 
-  my $xhtml;
+  my $xhtml     = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
   my $epub      = EBook::EPUB->new();
   my $filename  = "index.xhtml";
   my $order     = 1;
@@ -252,7 +150,6 @@ sub outputEpubFormat
   $epub->add_language ( 'zh_TW'           );
   # end setup meta data
 
-  $xhtml = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
   $xhtml->dataElement( 'h1', $novel->title() );
   $xhtml->end();
 
@@ -279,23 +176,19 @@ sub outputEpubFormat
 
     while( my ($j, $chapter) = each @{$book->chapters()} )
     {
-      my $fileT = fetchUrlToTempFile( $chapter->url() );
+      my @contents = $downloader->parseContent( $chapter->url() );
 
-      $xhtml = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2, UNSAFE => 1 );
+      $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
+      $xhtml    = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2, UNSAFE => 1 );
       $xhtml->dataElement( 'h3', $chapter->name() );
       $xhtml->startTag( 'p' );
       $xhtml->emptyTag( 'br'  );
 
-      $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
-
-      while( <$fileT> )
+      for my $text ( @contents )
       {
-        if( my ($text) = /$plaintextPattern/ )
-        {
-          $xhtml->raw( '&nbsp;' x 4 . "$text" );
-          $xhtml->emptyTag( 'br' );
-          $xhtml->emptyTag( 'br' );
-        }
+         $xhtml->raw( '&nbsp;' x 4 . "$text" );
+         $xhtml->emptyTag( 'br' );
+         $xhtml->emptyTag( 'br' );
       }
       $xhtml->endTag( 'p' );
       $xhtml->end   ();
