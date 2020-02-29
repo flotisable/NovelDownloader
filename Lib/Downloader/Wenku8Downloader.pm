@@ -143,4 +143,5 @@ sub fetchUrlToTempFile
   return $file;
 }
 # end private member functions
-1
+
+1;
