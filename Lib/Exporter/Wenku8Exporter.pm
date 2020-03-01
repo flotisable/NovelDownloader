@@ -3,9 +3,7 @@ package Exporter::Wenku8Exporter;
 
 use Moose;
 
-# pragmas
-binmode STDOUT, ":encoding(utf8)";
-# end pragmas
+with 'ExporterTemp';
 
 # packages
 use EBook::EPUB;
@@ -13,72 +11,15 @@ use EBook::EPUB;
 use XHTML::Writer;
 # end packages
 
-# global variables
-my %formats = (
-                org   =>  {
-                            name            =>  'org',
-                            exportFunction  =>  \&Exporter::Wenku8Exporter::exportOrg,
-                          },
-                epub  =>  {
-                            name            =>  'epub',
-                            exportFunction  =>  \&Exporter::Wenku8Exporter::exportEpub,
-                          },
-              );
-# end global variables
-
 # public member functions
-sub export;
-sub exportOrg;
-sub exportEpub;
+sub exportOrgCore;
+sub exportEpubCore;
 # end public member functions
 
-# attributes
-has 'downloader' =>
-(
-  is  => 'rw',
-  isa => 'Downloader::Wenku8Downloader',
-);
-
-has 'outputFileName' =>
-(
-  is  => 'rw',
-  isa => 'Str',
-);
-
-# end attributes
-
 # public member functions
-sub export
-{
-  my ( $self, $url, $formatName ) = @_;
-
-  defined $self->downloader() or die "No downloader being set!\n";
-
-  my $novel = $self->downloader()->parseIndex( $url );
-
-  for my $format ( values %formats )
-  {
-    if( $formatName eq $format->{name} )
-    {
-      $self->${ \$format->{exportFunction} }( $novel );
-      last;
-    }
-  }
-}
-
-sub exportOrg
+sub exportOrgCore
 {
   my ( $self, $novel ) = @_;
-
-  my $fh;
-
-  if( defined $self->outputFileName() )
-  {
-    open $fh, ">", $self->outputFileName();
-
-    binmode $fh, ":encoding(utf8)";
-    select $fh;
-  }
 
   print "#+TITLE: ", $novel->title(), "\n";
   print "#+AUTHOR: ", $novel->author(), "\n";
@@ -96,19 +37,17 @@ sub exportOrg
        print "$_\n\n" for @contents;
     }
   }
-  close $fh;
 }
 
-sub exportEpub
+sub exportEpubCore
 {
   my ( $self, $novel ) = @_;
 
-  defined $self->outputFileName() or die "Forget to specify output file name!";
-
-  my $xhtml     = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
-  my $epub      = EBook::EPUB->new();
-  my $filename  = "index.xhtml";
-  my $order     = 1;
+  my $xhtml           = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
+  my $epub            = EBook::EPUB->new();
+  my $filename        = "index.xhtml";
+  my $order           = 1;
+  my %navPointParams;
 
   # setup meta data
   $epub->add_title    ( $novel->title ()  );
@@ -119,12 +58,12 @@ sub exportEpub
   $xhtml->dataElement( 'h1', $novel->title() );
   $xhtml->end();
 
-  my $root  = $epub->add_navpoint(
-                                    label       => $novel->title(),
-                                    id          => $epub->add_xhtml( $filename, $xhtml ),
-                                    content     => $filename,
-                                    play_order  => $order++,
-              );
+  $navPointParams{label}      = $novel->title(),
+  $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
+  $navPointParams{content}    = $filename,
+  $navPointParams{play_order} = $order++,
+
+  my $root = $epub->add_navpoint( %navPointParams );
 
   while( my ($i, $book) = each @{$novel->books()} )
   {
@@ -133,12 +72,12 @@ sub exportEpub
     $xhtml->dataElement( 'h2', $book->name() );
     $xhtml->end();
 
-    my $bookNavPoint  = $root->add_navpoint(
-                                              label       => $book->name(),
-                                              id          => $epub->add_xhtml( $filename, $xhtml ),
-                                              content     => $filename,
-                                              play_order  => $order++,
-                        );
+    $navPointParams{label}      = $book->name(),
+    $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
+    $navPointParams{content}    = $filename,
+    $navPointParams{play_order} = $order++,
+
+    my $bookNavPoint = $root->add_navpoint( %navPointParams );
 
     while( my ($j, $chapter) = each @{$book->chapters()} )
     {
@@ -159,12 +98,12 @@ sub exportEpub
       $xhtml->endTag( 'p' );
       $xhtml->end   ();
 
-      $bookNavPoint->add_navpoint (
-                                    label       => $chapter->name(),
-                                    id          => $epub->add_xhtml( $filename, $xhtml ),
-                                    content     => $filename,
-                                    play_order  => $order++,
-                                  );
+      $navPointParams{label}      = $chapter->name(),
+      $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
+      $navPointParams{content}    = $filename,
+      $navPointParams{play_order} = $order++,
+
+      $bookNavPoint->add_navpoint( %navPointParams );
     }
   }
   $epub->pack_zip( $self->outputFileName() );

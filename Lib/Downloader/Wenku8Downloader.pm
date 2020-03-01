@@ -3,6 +3,8 @@ package Downloader::Wenku8Downloader;
 
 use Moose;
 
+with 'Downloader';
+
 # pragmas
 use utf8;
 # end pragmas
@@ -38,8 +40,6 @@ my %patterns =  (
                   plaintext => qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/,
                 );
 # end global variables
-
-with 'Downloader';
 
 # public member functions
 sub parseIndexCore;
