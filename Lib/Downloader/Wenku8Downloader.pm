@@ -8,8 +8,6 @@ use utf8;
 # end pragmas
 
 # packages
-use HTTP::Tiny;
-use File::Temp;
 use Class::Struct;
 
 use Encode::HanConvert;
@@ -41,30 +39,22 @@ my %patterns =  (
                 );
 # end global variables
 
+with 'Downloader';
+
 # public member functions
-sub parseIndex;
-sub parseContent;
+sub parseIndexCore;
+sub parseContentCore;
 # end public member functions
 
 # private member functions
-sub fetchUrlToTempFile;
+sub processfetchedContent;
 # end private member functions
 
-# attributes
-has 'http' =>
-(
-  is      => 'ro',
-  isa     => 'HTTP::Tiny',
-  default => sub { return HTTP::Tiny->new() },
-);
-# end attributes
-
 # public member functions
-sub parseIndex
+sub parseIndexCore
 {
-  my ( $self, $url ) = @_;
+  my ( $self, $fh ) = @_;
 
-  my $fh    = $self->fetchUrlToTempFile( $url );
   my $novel = Novel->new();
   my $book;
 
@@ -105,11 +95,10 @@ sub parseIndex
   return $novel;
 }
 
-sub parseContent
+sub parseContentCore
 {
-  my ( $self, $url ) = @_;
+  my ( $self, $fh ) = @_;
 
-  my $fh        = $self->fetchUrlToTempFile( $url );
   my @contents;
 
   while( <$fh> )
@@ -121,24 +110,11 @@ sub parseContent
 # end public member functions
 
 # private member functions
-sub fetchUrlToTempFile
+sub processfetchedContent
 {
-  my ( $self, $url ) = @_;
+  my ( $self, $content ) = @_;
 
-  my $response = $self->http()->get( $url );
-
-  die "$url Fail!\n" unless $response->{success};
-
-  gb_to_trad( $response->{content} );
-
-  my $file  = File::Temp->new();
-  my $pos   = $file->getpos();
-
-  binmode $file, ":encoding(utf8)";
-  print $file $response->{content};
-  $file->setpos($pos);
-
-  return $file;
+  return gb_to_trad( $content );
 }
 # end private member functions
 
