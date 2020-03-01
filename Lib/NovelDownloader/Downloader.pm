@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-package Downloader;
+package NovelDownloader::Downloader;
 
 use Moose::Role;
 

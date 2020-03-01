@@ -3,7 +3,7 @@ libDir := Lib
 PERL      := /c/Strawberry/perl/bin/perl
 INCLUDE   := -I ${libDir}
 PERLFLAGS := ${INCLUDE}
-PROG      := ./wenku8Download.pl
+PROG      := ./novelDownloader.pl
 
 testProgram := test.pl
 testDir     := Test

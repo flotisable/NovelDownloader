@@ -8,8 +8,8 @@ use warnings;
 use Getopt::Long;
 use Pod::Usage;
 
-use Downloader::Wenku8Downloader;
-use Exporter::Wenku8Exporter;
+use NovelDownloader::Downloader::Wenku8Downloader;
+use NovelDownloader::Exporter::Wenku8Exporter;
 # end packages
 
 # documents
@@ -75,8 +75,8 @@ sub main
   my @indexUrls = @ARGV;
   # end command line arguments
 
-  my $exporter  = Exporter::Wenku8Exporter->new(
-                    downloader      => Downloader::Wenku8Downloader->new(),
+  my $exporter  = NovelDownloader::Exporter::Wenku8Exporter->new(
+                    downloader      => NovelDownloader::Downloader::Wenku8Downloader->new(),
                     outputFileName  => $outputFileName,
                   );
 

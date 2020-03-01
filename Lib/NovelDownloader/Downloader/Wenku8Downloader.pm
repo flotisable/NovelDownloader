@@ -1,9 +1,9 @@
 #!/usr/bin/perl
-package Downloader::Wenku8Downloader;
+package NovelDownloader::Downloader::Wenku8Downloader;
 
 use Moose;
 
-with 'Downloader';
+with 'NovelDownloader::Downloader';
 
 # pragmas
 use utf8;

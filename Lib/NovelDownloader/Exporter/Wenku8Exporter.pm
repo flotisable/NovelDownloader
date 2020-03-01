@@ -1,9 +1,9 @@
 #!/usr/bin/perl
-package Exporter::Wenku8Exporter;
+package NovelDownloader::Exporter::Wenku8Exporter;
 
 use Moose;
 
-with 'ExporterTemp';
+with 'NovelDownloader::Exporter';
 
 # packages
 use EBook::EPUB;

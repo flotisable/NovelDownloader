@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-package ExporterTemp;
+package NovelDownloader::Exporter;
 
 use Moose::Role;
 
@@ -24,7 +24,7 @@ my %formats = (
 has 'downloader' =>
 (
   is    => 'rw',
-  does  => 'Downloader',
+  does  => 'NovelDownloader::Downloader',
 );
 
 has 'outputFileName' =>
