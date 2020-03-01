@@ -1,51 +1,41 @@
 #!/usr/bin/perl
 package XHTML::Writer;
 
-# pragmas
-use strict;
-use warnings;
-# end pragmas
+use Moose;
+use MooseX::NonMoose;
 
-# packages
-use XML::Writer;
-use parent 'XML::Writer';
-# end packages
+extends 'XML::Writer';
 
 # public memeber functions
-sub new;
-sub end;
-# end public memeber functions
-
-# public memeber functions
-sub new()
-{
-  my ( $class, %params ) = @_;
-
-  $params{TITLE} //= "";
-
-  my $object = bless XML::Writer->new( %params ), $class;
-
-  $object->doctype ( 'html', '-//W3C//DTD XHTML 1.1//EN', 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd' );
-  $object->startTag( 'html', xmlns => 'http://www.w3.org/1999/xhtml' );
-    $object->startTag( 'head' );
-      $object->startTag( 'title' );
-        $object->characters( $params{TITLE} );
-      $object->endTag  ( 'title' );
-    $object->endTag  ( 'head' );
-    $object->startTag( 'body' );
-
-  return $object;
-}
-
-sub end()
+sub BUILD;
+override 'end', sub
 {
   my $self = shift;
 
     $self->endTag  ( 'body' );
   $self->endTag  ( 'html' );
 
-  $self->SUPER::end();
+  super();
+};
+# end public memeber functions
+
+# public memeber functions
+sub BUILD
+{
+  my ( $self, $params ) = @_;
+
+  $params->{TITLE} //= "";
+
+  $self->doctype ( 'html', '-//W3C//DTD XHTML 1.1//EN', 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd' );
+  $self->startTag( 'html', xmlns => 'http://www.w3.org/1999/xhtml' );
+    $self->startTag( 'head' );
+      $self->startTag( 'title' );
+        $self->characters( $params->{TITLE} );
+      $self->endTag  ( 'title' );
+    $self->endTag  ( 'head' );
+    $self->startTag( 'body' );
 }
 # end public memeber functions
 
+no Moose;
 1;

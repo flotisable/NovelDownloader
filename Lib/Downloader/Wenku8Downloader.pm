@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 package Downloader::Wenku8Downloader;
 
+use Moose;
+
 # pragmas
-use strict;
-use warnings;
 use utf8;
 # end pragmas
 
@@ -42,7 +42,6 @@ my %patterns =  (
 # end global variables
 
 # public member functions
-sub new;
 sub parseIndex;
 sub parseContent;
 # end public member functions
@@ -51,17 +50,16 @@ sub parseContent;
 sub fetchUrlToTempFile;
 # end private member functions
 
+# attributes
+has 'http' =>
+(
+  is      => 'ro',
+  isa     => 'HTTP::Tiny',
+  default => sub { return HTTP::Tiny->new() },
+);
+# end attributes
+
 # public member functions
-sub new
-{
-  my $class   = shift;
-  my $object  = {
-                  http => HTTP::Tiny->new(),
-                };
-
-  return bless $object, $class;
-}
-
 sub parseIndex
 {
   my ( $self, $url ) = @_;
@@ -127,7 +125,7 @@ sub fetchUrlToTempFile
 {
   my ( $self, $url ) = @_;
 
-  my $response = $self->{http}->get( $url );
+  my $response = $self->http()->get( $url );
 
   die "$url Fail!\n" unless $response->{success};
 
@@ -144,4 +142,5 @@ sub fetchUrlToTempFile
 }
 # end private member functions
 
+no Moose;
 1;

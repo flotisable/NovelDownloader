@@ -1,66 +1,53 @@
 #!/usr/bin/perl
 package Exporter::Wenku8Exporter;
 
-# pragmas
-use strict;
-use warnings;
+use Moose;
 
+# pragmas
 binmode STDOUT, ":encoding(utf8)";
 # end pragmas
 
 # packages
-use Class::Struct;
-
 use EBook::EPUB;
 
 use XHTML::Writer;
 # end packages
 
-# struct declarations
-struct( Wenku8ExporterStruct => {
-                                  downloader      => '$',
-                                  outputFileName  => '$',
-                                } );
-
-use parent -norequire, 'Wenku8ExporterStruct';
-# end struct declarations
+# global variables
+my %formats = (
+                org   =>  {
+                            name            =>  'org',
+                            exportFunction  =>  \&Exporter::Wenku8Exporter::exportOrg,
+                          },
+                epub  =>  {
+                            name            =>  'epub',
+                            exportFunction  =>  \&Exporter::Wenku8Exporter::exportEpub,
+                          },
+              );
+# end global variables
 
 # public member functions
-sub new;
 sub export;
 sub exportOrg;
 sub exportEpub;
 # end public member functions
 
+# attributes
+has 'downloader' =>
+(
+  is  => 'rw',
+  isa => 'Downloader::Wenku8Downloader',
+);
+
+has 'outputFileName' =>
+(
+  is  => 'rw',
+  isa => 'Str',
+);
+
+# end attributes
+
 # public member functions
-sub new
-{
-  my ( $class, %params )  = @_;
-  my $object              = Wenku8ExporterStruct->new( %params );
-  
-  bless $object, $class;
-
-  $object->{formats} =  {
-                          org   =>  {
-                                      name            =>  'org',
-                                      exportFunction  =>  sub {
-                                                            my $novel = shift;
-
-                                                            $object->exportOrg( $novel )
-                                                          },
-                                    },
-                          epub  =>  {
-                                      name            =>  'epub',
-                                      exportFunction  =>  sub {
-                                                            my $novel = shift;
-
-                                                            $object->exportEpub( $novel )
-                                                          },
-                                    },
-                        };
-  return $object;
-}
-
 sub export
 {
   my ( $self, $url, $formatName ) = @_;
@@ -69,11 +56,11 @@ sub export
 
   my $novel = $self->downloader()->parseIndex( $url );
 
-  for my $format ( values %{ $self->{formats} } )
+  for my $format ( values %formats )
   {
     if( $formatName eq $format->{name} )
     {
-      $format->{exportFunction}( $novel );
+      $self->${ \$format->{exportFunction} }( $novel );
       last;
     }
   }
@@ -184,4 +171,5 @@ sub exportEpub
 }
 # end public member functions
 
+no Moose;
 1;
