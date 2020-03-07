@@ -1,0 +1,27 @@
+#+CATEGORY: NovelDownloader
+
+* TODO v1.0
+** TODO v0.1
+*** TODO add processor factory module
+*** TODO add readme file
+** TODO v0.2
+*** TODO add unit tests [0%]
+    - [ ] XHTML::Writer.pm
+    - [ ] NovelDownloader::Downloader.pm
+    - [ ] NovelDownloader::Exporter.pm
+    - [ ] NovelDownloader::Wenku8Downloader.pm
+    - [ ] NovelDownloader::Wenku8Exporter.pm
+*** TODO add documentations [0%]
+    - [ ] novelDownloader.pl
+    - [ ] XHTML::Writer.pm
+    - [ ] NovelDownloader::Downloader.pm
+    - [ ] NovelDownloader::Exporter.pm
+    - [ ] NovelDownloader::Wenku8Downloader.pm
+    - [ ] NovelDownloader::Wenku8Exporter.pm
+*** TODO support configuration
+* TODO v1.1
+** TODO support comicbus.com
+** TODO support seba.com
+* TODO v1.2
+** TODO add GUI
+* unplanned
