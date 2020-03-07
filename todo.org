@@ -2,7 +2,17 @@
 
 * TODO v1.0
 ** TODO v0.1
-*** TODO add processor factory module
+*** DONE add processor factory module
+    CLOSED: [2020-03-07 週六 16:57] SCHEDULED: <2020-03-07 週六>
+    :LOGBOOK:
+    CLOCK: [2020-03-07 週六 16:27]--[2020-03-07 週六 16:56] =>  0:29
+    :END:
+*** DONE read processor configuration from a file
+    CLOSED: [2020-03-07 週六 17:29] SCHEDULED: <2020-03-07 週六>
+    :LOGBOOK:
+    CLOCK: [2020-03-07 週六 17:16]--[2020-03-07 週六 17:29] =>  0:13
+    CLOCK: [2020-03-07 週六 17:02]--[2020-03-07 週六 17:12] =>  0:10
+    :END:
 *** TODO add readme file
 ** TODO v0.2
 *** TODO add unit tests [0%]
@@ -19,6 +29,7 @@
     - [ ] NovelDownloader::Wenku8Downloader.pm
     - [ ] NovelDownloader::Wenku8Exporter.pm
 *** TODO support configuration
+*** TODO support user level processor configuration file
 * TODO v1.1
 ** TODO support comicbus.com
 ** TODO support seba.com
