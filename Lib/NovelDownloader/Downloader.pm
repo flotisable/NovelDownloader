@@ -22,11 +22,11 @@ requires 'processfetchedContent';
 # end private member functions
 
 # attributes
-has 'http' =>
+has http =>
 (
   is      => 'ro',
   isa     => 'HTTP::Tiny',
-  default => sub { return HTTP::Tiny->new() },
+  default => sub { HTTP::Tiny->new() },
 );
 # end attributes
 

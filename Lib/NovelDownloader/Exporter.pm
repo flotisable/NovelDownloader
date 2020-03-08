@@ -21,13 +21,13 @@ my %formats = (
 # end global variables
 
 # attributes
-has 'downloader' =>
+has downloader =>
 (
   is    => 'rw',
   does  => 'NovelDownloader::Downloader',
 );
 
-has 'outputFileName' =>
+has outputFileName =>
 (
   is  => 'rw',
   isa => 'Str',

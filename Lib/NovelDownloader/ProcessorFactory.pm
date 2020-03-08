@@ -3,17 +3,33 @@ package NovelDownloader::ProcessorFactory;
 
 use Moose;
 
+# pragmas
 use constant BUILDIN_PROCESSOR_CONFIG_FILE => 'processors.txt';
+# end pragmas
 
+# packages
 use Module::Load;
+# end packages
 
+# attributes
 has processors =>
 (
   is      =>  'ro',
   isa     =>  'ArrayRef[HashRef[Defined]]',
   default =>  sub { [] },
 );
+# end attributes
 
+# public member functions
+sub BUILD;
+sub generate;
+# end public member functions
+
+# private member functions
+sub loadProcessors;
+# end private member functions
+
+# public member functions
 sub BUILD
 {
   my $self = shift;
@@ -37,7 +53,9 @@ sub generate
   }
   die "No processor for $url!\n";
 };
+# end public member functions
 
+# private member functions
 sub loadProcessors
 {
   my $self = shift;
@@ -57,6 +75,7 @@ sub loadProcessors
   }
   close $fh;
 };
+# end private member functions
 
 no Moose;
 1;

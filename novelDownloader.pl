@@ -68,7 +68,7 @@ sub main
               'format|f=s'  => \$outputFormat,
               'h'           => sub { pod2usage();   },
               'help'        => sub { pod2usage(1);  },
-  ) or die "Invalid Option!";
+  ) or die "Invalid Option!\n";
 
   # command line arguments
   my @indexUrls = @ARGV;
@@ -79,11 +79,10 @@ sub main
   for my $indexUrl ( @indexUrls )
   {
      my ( $downloader, $exporter ) = $factory->generate( $indexUrl );
-    
+
      $exporter->downloader    ( $downloader                   );
      $exporter->outputFileName( $outputFileName               );
      $exporter->export        ( $indexUrl,      $outputFormat );
   }
 }
-
 # end function definitions

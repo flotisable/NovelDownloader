@@ -27,30 +27,29 @@ sub compareExportFile;
 main();
 
 # function definitions
-sub main()
+sub main
 {
   my ( $testProgram, $testcaseDir ) = @ARGV; # command line arguments
 
-  my $orgTestFile   = "$testcaseDir/" . TEST_ORG_FILE;
-  my $epubTestFile  = "$testcaseDir/" . TEST_EPUB_FILE;
+  my $orgTestFile   = "$testcaseDir/${ \TEST_ORG_FILE   }";
+  my $epubTestFile  = "$testcaseDir/${ \TEST_EPUB_FILE  }";
 
   testOrgExport(  $testProgram, $orgTestFile  );
   testEpubExport( $testProgram, $epubTestFile );
 }
 
-sub testOrgExport()
+sub testOrgExport
 {
   my ( $testProgram, $orgTestFile ) = @_;
 
   my $file = File::Temp->new();
 
-  # test org format
-  system "$testProgram -o " . $file->filename() . " " . TEST_URL;
+  system "$testProgram -o $file ${ \TEST_URL }";
 
-  compareExportFile( $orgTestFile, $file->filename(), 'Org' );
+  compareExportFile( $orgTestFile, "$file", 'Org' );
 }
 
-sub testEpubExport()
+sub testEpubExport
 {
   my ( $testProgram, $epubTestFile ) = @_;
 
@@ -58,12 +57,12 @@ sub testEpubExport()
   my $refBuffer = File::Temp->new();
   my $tmpBuffer = File::Temp->new();
 
-  system "$testProgram -f epub -o " . $file->filename() . " " . TEST_URL;
+  system "$testProgram -f epub -o $file ${ \TEST_URL }";
 
-  unzip( $file->filename()  => $tmpBuffer->filename(), MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
-  unzip( $epubTestFile      => $refBuffer->filename(), MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
+  unzip( $file          => "$tmpBuffer", MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
+  unzip( $epubTestFile  => "$refBuffer", MultiStream => 1 ) or die "Unzip Fail: $UnzipError\n";
 
-  compareExportFile( $refBuffer->filename(), $tmpBuffer->filename(), 'Epub' );
+  compareExportFile( "$refBuffer", "$tmpBuffer", 'Epub' );
 }
 
 sub compareExportFile()

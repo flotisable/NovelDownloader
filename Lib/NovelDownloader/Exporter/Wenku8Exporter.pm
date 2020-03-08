@@ -5,16 +5,34 @@ use Moose;
 
 with 'NovelDownloader::Exporter';
 
+# pragmas
+use constant WRITER_DEFAULT_OPTIONS =>
+{
+  OUTPUT      => 'self',
+  DATA_MODE   => 1,
+  DATA_INDENT => 2,
+};
+# end pragmas
+
 # packages
 use EBook::EPUB;
 
 use XHTML::Writer;
 # end packages
 
+my %writerOptions   = ();
+
 # public member functions
 sub exportOrgCore;
 sub exportEpubCore;
 # end public member functions
+
+# private member functions
+sub getNewEpub;
+sub exportEpubNovelTitle;
+sub exportEpubBookTitle;
+sub exportEpubChapter;
+# end private member functions
 
 # public member functions
 sub exportOrgCore
@@ -25,11 +43,11 @@ sub exportOrgCore
   print "#+AUTHOR: ", $novel->author(), "\n";
   print "#+OPTIONS: toc:nil num:nil\n";
 
-  for my $book ( @{$novel->books()} )
+  for my $book ( @{ $novel->books() } )
   {
     print "* ", $book->name(), "\n";
 
-    for my $chapter (@{$book->chapters()})
+    for my $chapter ( @{ $book->chapters() } )
     {
        my @contents = $self->downloader()->parseContent( $chapter->url() );
 
@@ -43,72 +61,102 @@ sub exportEpubCore
 {
   my ( $self, $novel ) = @_;
 
-  my $xhtml           = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
-  my $epub            = EBook::EPUB->new();
-  my $filename        = "index.xhtml";
-  my $order           = 1;
-  my %navPointParams;
+  my $epub      = $self->getNewEpub( $novel );
+  my $filename  = "index.xhtml";
+  my $order     = 1;
+  my $root      = $self->exportEpubNovelTitle( $epub, $novel, $filename, $order++ );
 
-  # setup meta data
-  $epub->add_title    ( $novel->title ()  );
-  $epub->add_author   ( $novel->author()  );
-  $epub->add_language ( 'zh_TW'           );
-  # end setup meta data
-
-  $xhtml->dataElement( 'h1', $novel->title() );
-  $xhtml->end();
-
-  $navPointParams{label}      = $novel->title(),
-  $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
-  $navPointParams{content}    = $filename,
-  $navPointParams{play_order} = $order++,
-
-  my $root = $epub->add_navpoint( %navPointParams );
-
-  while( my ($i, $book) = each @{$novel->books()} )
+  while( my ( $i, $book ) = each @{$novel->books()} )
   {
-    $filename = "book" . ( $i + 1 ) . ".xhtml";
-    $xhtml    = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
-    $xhtml->dataElement( 'h2', $book->name() );
-    $xhtml->end();
+    my $filename      = "book${ \( $i + 1 ) }.xhtml";
+    my $bookNavPoint  = $self->exportEpubBookTitle( $epub, $root, $book, $filename, $order++ );
 
-    $navPointParams{label}      = $book->name(),
-    $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
-    $navPointParams{content}    = $filename,
-    $navPointParams{play_order} = $order++,
-
-    my $bookNavPoint = $root->add_navpoint( %navPointParams );
-
-    while( my ($j, $chapter) = each @{$book->chapters()} )
+    while( my ( $j, $chapter ) = each @{ $book->chapters() } )
     {
-      my @contents = $self->downloader()->parseContent( $chapter->url() );
+      my $filename = "chapter${ \( $i + 1 ) }_${ \( $j + 1 ) }.xhtml";
 
-      $filename = "chapter" . ( $i + 1 ) . "_" . ( $j + 1 ) . ".xhtml";
-      $xhtml    = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2, UNSAFE => 1 );
-      $xhtml->dataElement( 'h3', $chapter->name() );
-      $xhtml->startTag( 'p' );
-      $xhtml->emptyTag( 'br'  );
-
-      for my $text ( @contents )
-      {
-         $xhtml->raw( '&nbsp;' x 4 . "$text" );
-         $xhtml->emptyTag( 'br' );
-         $xhtml->emptyTag( 'br' );
-      }
-      $xhtml->endTag( 'p' );
-      $xhtml->end   ();
-
-      $navPointParams{label}      = $chapter->name(),
-      $navPointParams{id}         = $epub->add_xhtml( $filename, $xhtml ),
-      $navPointParams{content}    = $filename,
-      $navPointParams{play_order} = $order++,
-
-      $bookNavPoint->add_navpoint( %navPointParams );
+      $self->exportEpubChapter( $epub, $bookNavPoint, $chapter, $filename, $order++ );
     }
   }
   $epub->pack_zip( $self->outputFileName() );
 }
 # end public member functions
+
+# private member functions
+sub getNewEpub
+{
+  my ( $self, $novel ) = @_;
+
+  my $epub = EBook::EPUB->new();
+
+  $epub->add_title    ( $novel->title ()  );
+  $epub->add_author   ( $novel->author()  );
+  $epub->add_language ( 'zh_TW'           );
+
+  return $epub;
+}
+
+sub exportEpubNovelTitle
+{
+  my ( $self, $epub, $novel, $filename, $order ) = @_;
+
+  my $xhtml = XHTML::Writer->new( %${ \WRITER_DEFAULT_OPTIONS } );
+
+  $xhtml->dataElement( 'h1', $novel->title() );
+  $xhtml->end();
+
+  return $epub->add_navpoint(
+                              label       => $novel->title(),
+                              id          => $epub->add_xhtml( $filename, $xhtml ),
+                              content     => $filename,
+                              play_order  => $order,
+                            );
+}
+
+sub exportEpubBookTitle
+{
+  my ( $self, $epub, $novelNavPoint, $book, $filename, $order ) = @_;
+
+  my $xhtml = XHTML::Writer->new( %${ \WRITER_DEFAULT_OPTIONS } );
+
+  $xhtml->dataElement( 'h2', $book->name() );
+  $xhtml->end();
+
+  return $novelNavPoint->add_navpoint (
+                                        label       => $book->name(),
+                                        id          => $epub->add_xhtml( $filename, $xhtml ),
+                                        content     => $filename,
+                                        play_order  => $order,
+                                      );
+}
+
+sub exportEpubChapter
+{
+  my ( $self, $epub, $bookNavPoint, $chapter, $filename, $order ) = @_;
+
+  my $xhtml = XHTML::Writer->new( %${ \WRITER_DEFAULT_OPTIONS }, UNSAFE => 1 );
+
+  $xhtml->dataElement( 'h3', $chapter->name() );
+  $xhtml->startTag( 'p' );
+  $xhtml->emptyTag( 'br'  );
+
+  for my $text ( $self->downloader()->parseContent( $chapter->url() ) )
+  {
+     $xhtml->raw( '&nbsp;' x 4 . "$text" );
+     $xhtml->emptyTag( 'br' );
+     $xhtml->emptyTag( 'br' );
+  }
+  $xhtml->endTag( 'p' );
+  $xhtml->end   ();
+
+  $bookNavPoint->add_navpoint ( 
+                                label       => $chapter->name(),
+                                id          => $epub->add_xhtml( $filename, $xhtml ),
+                                content     => $filename,
+                                play_order  => $order,
+                              );
+}
+# end private member functions
 
 no Moose;
 1;

@@ -7,6 +7,15 @@ with 'NovelDownloader::Downloader';
 
 # pragmas
 use utf8;
+
+use constant
+{
+  TITLE_PATTERN     => qr/<div id="title">(.+)<\/div>/,
+  AUTHOR_PATTERN    => qr/<div id="info">作者：(.+)<\/div>/,
+  BOOK_PATTERN      => qr/<td class="vcss" colspan="4">(.+)<\/td>/,
+  CHAPTER_PATTERN   => qr/<td class="ccss"><a href="(.+)">(.+)<\/a><\/td>/,
+  PLAINTEXT_PATTERN => qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/,
+};
 # end pragmas
 
 # packages
@@ -31,16 +40,6 @@ struct( Chapter =>  {
                     } );
 # end structure declarations
 
-# global variables
-my %patterns =  (
-                  title     => qr/<div id="title">(.+)<\/div>/,
-                  author    => qr/<div id="info">作者：(.+)<\/div>/,
-                  book      => qr/<td class="vcss" colspan="4">(.+)<\/td>/,
-                  chapter   => qr/<td class="ccss"><a href="(.+)">(.+)<\/a><\/td>/,
-                  plaintext => qr/&nbsp;&nbsp;&nbsp;&nbsp;(.+)<br \/>/,
-                );
-# end global variables
-
 # public member functions
 sub parseIndexCore;
 sub parseContentCore;
@@ -60,7 +59,7 @@ sub parseIndexCore
 
   while( <$fh> )
   {
-    if( my ( $title ) = /$patterns{title}/ )
+    if( my ( $title ) = /${ \TITLE_PATTERN }/ )
     {
       $novel->title( $title );
       last;
@@ -68,7 +67,7 @@ sub parseIndexCore
   }
   while( <$fh> )
   {
-    if( my ( $author ) = /$patterns{author}/ )
+    if( my ( $author ) = /${ \AUTHOR_PATTERN }/ )
     {
       $novel->author( $author );
       last;
@@ -76,13 +75,13 @@ sub parseIndexCore
   }
   while( <$fh> )
   {
-    if( my ( $bookname ) = /$patterns{book}/ )
+    if( my ( $bookname ) = /${ \BOOK_PATTERN }/ )
     {
       $book = Book->new( name => $bookname );
       push @{$novel->books()}, $book;
       next;
     }
-    if( my ( $url, $chapter ) = /$patterns{chapter}/ )
+    if( my ( $url, $chapter ) = /${ \CHAPTER_PATTERN }/ )
     {
       my $chapter = Chapter->new(
                       name  => $chapter,
@@ -99,13 +98,7 @@ sub parseContentCore
 {
   my ( $self, $fh ) = @_;
 
-  my @contents;
-
-  while( <$fh> )
-  {
-    push @contents, $1 if /$patterns{plaintext}/;
-  }
-  return @contents;
+  return map /${ \PLAINTEXT_PATTERN }/, <$fh>;
 }
 # end public member functions
 
