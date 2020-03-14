@@ -1,8 +1,8 @@
 #+CATEGORY: NovelDownloader
 
 * TODO v1.0
-** WIP v0.1
-   SCHEDULED: <2020-03-14 週六>
+** DONE v0.1
+   CLOSED: [2020-03-14 週六 15:31] SCHEDULED: <2020-03-14 週六>
 *** DONE add processor factory module
     CLOSED: [2020-03-07 週六 16:57] SCHEDULED: <2020-03-07 週六>
     :LOGBOOK:
@@ -24,8 +24,11 @@
     :LOGBOOK:
     CLOCK: [2020-03-14 週六 14:37]--[2020-03-14 週六 14:59] =>  0:22
     :END:
-*** TODO push repository to github
-    SCHEDULED: <2020-03-14 週六>
+*** DONE push repository to github
+    CLOSED: [2020-03-14 週六 15:31] SCHEDULED: <2020-03-14 週六>
+    :LOGBOOK:
+    CLOCK: [2020-03-14 週六 15:27]--[2020-03-14 週六 15:31] =>  0:04
+    :END:
 ** TODO v0.2
 *** TODO add unit tests [0%]
     - [ ] XHTML::Writer.pm
