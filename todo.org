@@ -14,8 +14,11 @@
     CLOCK: [2020-03-07 週六 17:16]--[2020-03-07 週六 17:29] =>  0:13
     CLOCK: [2020-03-07 週六 17:02]--[2020-03-07 週六 17:12] =>  0:10
     :END:
-*** TODO add readme file
-    SCHEDULED: <2020-03-14 週六>
+*** DONE add readme file
+    CLOSED: [2020-03-14 週六 15:26] SCHEDULED: <2020-03-14 週六>
+    :LOGBOOK:
+    CLOCK: [2020-03-14 週六 15:02]--[2020-03-14 週六 15:26] =>  0:24
+    :END:
 *** DONE update documentation of novelDownloader.pl
     CLOSED: [2020-03-14 週六 14:59] SCHEDULED: <2020-03-14 週六>
     :LOGBOOK:
