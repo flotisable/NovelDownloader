@@ -55,7 +55,7 @@ print detailed help message.
 =head1 DESCRIPTION
 
 This program is written to download the novel from the website,
-currently only support the www.wenku8.com.
+currently only support the www.wenku8.net.
 
 =head1 EXAMPLES
 

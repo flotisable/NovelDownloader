@@ -21,7 +21,7 @@
    This will download the novel whose index is at 'https://www.wenku8.net/modules/article/reader.php?aid=112', and output the novel to file **output.epub** with **epub** format
 
 ## Currently Supported Website
-   - www.wenku8.com
+   - www.wenku8.net
 
      The index url should be **php** type rather than html type.
 
