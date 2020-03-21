@@ -1,8 +1,14 @@
 #+CATEGORY: NovelDownloader
 
 * TODO v1.0
-** DONE v0.1
-   CLOSED: [2020-03-14 週六 15:31] SCHEDULED: <2020-03-14 週六>
+** TODO v0.1
+   SCHEDULED: <2020-03-14 週六>
+*** TODO before release
+    SCHEDULED: <2020-03-21 週六>
+**** TODO add git tag
+     SCHEDULED: <2020-03-21 週六>
+**** TODO add version option for the program
+     SCHEDULED: <2020-03-21 週六>
 *** DONE add processor factory module
     CLOSED: [2020-03-07 週六 16:57] SCHEDULED: <2020-03-07 週六>
     :LOGBOOK:
@@ -30,6 +36,8 @@
     CLOCK: [2020-03-14 週六 15:27]--[2020-03-14 週六 15:31] =>  0:04
     :END:
 ** TODO v0.2
+*** TODO add git tag
+*** TODO update version string
 *** TODO add unit tests [0%]
     - [ ] XHTML::Writer.pm
     - [ ] NovelDownloader::Downloader.pm
@@ -48,11 +56,20 @@
 *** TODO support configuration
 *** TODO support user level processor configuration file
 *** TODO seperate data structure to different module
+** TODO before release
+*** TODO add git tag
+*** TODO update version string
 * TODO v1.1
 ** TODO support comicbus.com
 ** TODO support seba.com
+** TODO before release
+*** TODO add git tag
+*** TODO update version string
 * TODO v1.2
 ** TODO add GUI
+** TODO before release
+*** TODO add git tag
+*** TODO update version string
 * unplanned
 ** TODO build self contained binary
 ** TODO support cover image for www.wenku8.com
@@ -60,3 +77,4 @@
    - download according to a configuration file
    - download only when need to update
 ** TODO support parallel download
+** TODO add traditional chinese readme file
