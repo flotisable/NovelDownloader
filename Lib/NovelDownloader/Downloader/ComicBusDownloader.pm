@@ -5,14 +5,22 @@ use Moose;
 
 with 'NovelDownloader::Downloader';
 
+# pragmas
+use utf8;
+# end pragmas
+
 # packages
 use Class::Struct;
+use Data::Dump      qw/dump/;
+
+use Encode qw/decode/;
 # end packages
 
 # structure declarations
 struct( Comic =>  {
                     title   => '$',
                     author  => '$',
+                    cover   => '$',
                     books   => '@',
                   } );
 struct( Book  =>  {
@@ -37,11 +45,47 @@ sub parseIndexCore
 {
   my ( $self, $fh ) = @_;
 
-  open my $file, '>', 'Temp/index.html';
+  my %pattern = (
+                  title     => qr/<img src="..\/images\/bon_1.gif" width="4" height="11" hspace="6" \/><font color="#FFFFFF" style="font-size:10pt; letter-spacing:1px">(.+)<\/font>/,
+                  cover     => qr/<img src='\/(pics\/0\/\d+.jpg)' hspace="10" vspace="10" border="0" style="border:#CCCCCC solid 1px;width:240px;" \/>/,
+                  authorPre => qr/作者：/,
+                  author    => qr/<td nowrap="nowrap">(.+)<\/td>/,
+                  chapter   => qr/<a href='#' onclick="cview\('(\d+-(\d+)\.html)',6,1\);return false;" id="c\d+" class="Ch">/,
+                );
 
-  print $file "$_\n" while( <$fh> );
+  my $comic = Comic->new( books => [ Book->new() ] );
 
-  return '';
+  while( <$fh> )
+  {
+    $comic->title( $1 ) if /$pattern{title}/; # get title
+
+    if( my ( $path ) = /$pattern{cover}/ ) # get cover image
+    {
+      my $url = ( $self->url() =~ s/html\/\d+\.html/$path/r );
+
+      $comic->cover( $url );
+    }
+    if( /$pattern{authorPre}/ ) # get author
+    {
+      my $line;
+
+      1 until not defined( $line = <$fh> ) or $line =~ /$pattern{author}/;
+
+      $comic->author( $1 );
+    }
+    if( my ( $path, $index ) = /$pattern{chapter}/ ) # get chapters
+    {
+      my $chapters  = $comic->books( -1 )->chapters();
+      my $url       = $self->url();
+
+      next if $index < scalar @$chapters;
+
+      $url =~ s/\d+\.html/$path/;
+
+      push @$chapters, $url;
+    }
+  }
+  return $comic;
 }
 
 sub parseContentCore
@@ -55,7 +99,7 @@ sub processfetchedContent
 {
   my ( $self, $content ) = @_;
 
-  return $content;
+  return decode( 'big5', $content );
 }
 # end private member functions
 

@@ -28,6 +28,12 @@ has http =>
   isa     => 'HTTP::Tiny',
   default => sub { HTTP::Tiny->new() },
 );
+
+has url =>
+(
+  is  => 'rw',
+  isa => 'Maybe[Str]',
+);
 # end attributes
 
 # public member functions
@@ -35,12 +41,16 @@ sub parseIndex
 {
   my ( $self, $url ) = @_;
 
+  $self->url( $url );
+
   return $self->parseIndexCore( $self->fetchUrlToTempFile( $url ) );
 }
 
 sub parseContent
 {
   my ( $self, $url ) = @_;
+
+  $self->url( $url );
 
   return $self->parseContentCore( $self->fetchUrlToTempFile( $url ) );
 }
