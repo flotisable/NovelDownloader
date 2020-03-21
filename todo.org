@@ -1,12 +1,15 @@
 #+CATEGORY: NovelDownloader
 
 * TODO v1.0
-** TODO v0.1
-   SCHEDULED: <2020-03-14 週六>
-*** WIP before release
-    SCHEDULED: <2020-03-21 週六>
-**** TODO add git tag
-     SCHEDULED: <2020-03-21 週六>
+** DONE v0.1
+   CLOSED: [2020-03-21 週六 15:04] SCHEDULED: <2020-03-14 週六>
+*** DONE before release
+    CLOSED: [2020-03-21 週六 15:03] SCHEDULED: <2020-03-21 週六>
+**** DONE add git tag
+     CLOSED: [2020-03-21 週六 15:03] SCHEDULED: <2020-03-21 週六>
+     :LOGBOOK:
+     CLOCK: [2020-03-21 週六 15:03]--[2020-03-21 週六 15:03] =>  0:00
+     :END:
 **** DONE add version option for the program
      CLOSED: [2020-03-21 週六 15:02] SCHEDULED: <2020-03-21 週六>
      :LOGBOOK:
