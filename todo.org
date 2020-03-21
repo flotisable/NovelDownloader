@@ -42,8 +42,9 @@
     CLOCK: [2020-03-14 週六 15:27]--[2020-03-14 週六 15:31] =>  0:04
     :END:
 ** TODO v0.2
-*** TODO add git tag
-*** TODO update version string
+*** TODO before release
+**** TODO add git tag
+**** TODO update version string
 *** TODO add unit tests [0%]
     - [ ] XHTML::Writer.pm
     - [ ] NovelDownloader::Downloader.pm
@@ -67,6 +68,7 @@
 *** TODO update version string
 * TODO v1.1
 ** TODO support comicbus.com
+   SCHEDULED: <2020-03-21 週六>
 ** TODO support seba.com
 ** TODO before release
 *** TODO add git tag
