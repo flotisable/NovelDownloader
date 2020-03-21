@@ -20,8 +20,6 @@ use EBook::EPUB;
 use XHTML::Writer;
 # end packages
 
-my %writerOptions   = ();
-
 # public member functions
 sub exportOrgCore;
 sub exportEpubCore;

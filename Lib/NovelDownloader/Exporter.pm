@@ -30,7 +30,7 @@ has downloader =>
 has outputFileName =>
 (
   is  => 'rw',
-  isa => 'Str',
+  isa => 'Maybe[Str]',
 );
 
 # end attributes
