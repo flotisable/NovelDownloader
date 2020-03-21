@@ -3,12 +3,15 @@
 * TODO v1.0
 ** TODO v0.1
    SCHEDULED: <2020-03-14 週六>
-*** TODO before release
+*** WIP before release
     SCHEDULED: <2020-03-21 週六>
 **** TODO add git tag
      SCHEDULED: <2020-03-21 週六>
-**** TODO add version option for the program
-     SCHEDULED: <2020-03-21 週六>
+**** DONE add version option for the program
+     CLOSED: [2020-03-21 週六 15:02] SCHEDULED: <2020-03-21 週六>
+     :LOGBOOK:
+     CLOCK: [2020-03-21 週六 14:41]--[2020-03-21 週六 15:02] =>  0:21
+     :END:
 *** DONE add processor factory module
     CLOSED: [2020-03-07 週六 16:57] SCHEDULED: <2020-03-07 週六>
     :LOGBOOK:

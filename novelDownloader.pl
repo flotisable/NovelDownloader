@@ -5,7 +5,7 @@ use warnings;
 # end pragmas
 
 # packages
-use Getopt::Long;
+use Getopt::Long qw/VersionMessage/;
 use Pod::Usage;
 
 use NovelDownloader::ProcessorFactory;
@@ -106,6 +106,10 @@ Flotisable <s09930698@gmail.com>
 =cut
 # end documents
 
+# global variables
+our $VERSION = '0.01';
+# end global variables
+
 # function declarations
 sub main;
 # end function declarations
@@ -121,8 +125,9 @@ sub main
   GetOptions(
               'output|o=s'  => \$outputFileName,
               'format|f=s'  => \$outputFormat,
-              'h'           => sub { pod2usage();   },
-              'help'        => sub { pod2usage(1);  },
+              'h'           => sub { pod2usage();       },
+              'help'        => sub { pod2usage(1);      },
+              'version|v'   => sub { VersionMessage();  },
   ) or die "Invalid Option!\n";
 
   # command line arguments
