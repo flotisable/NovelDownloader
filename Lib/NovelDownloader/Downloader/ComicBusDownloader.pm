@@ -11,7 +11,6 @@ use utf8;
 
 # packages
 use Class::Struct;
-use Data::Dump      qw/dump/;
 
 use Encode qw/decode/;
 # end packages
@@ -26,9 +25,6 @@ struct( Comic =>  {
 struct( Book  =>  {
                     chapters  => '@',
                   } );
-struct( Chapter =>  {
-                      pages => '@',
-                    } );
 # end structure declarations
 
 # public member functions
@@ -38,6 +34,9 @@ sub parseContentCore;
 
 # private member functions
 sub processfetchedContent;
+sub decodeCodeString;
+sub getPageNum;
+sub getImageUrl;
 # end private member functions
 
 # public member functions
@@ -76,11 +75,11 @@ sub parseIndexCore
     if( my ( $path, $index ) = /$pattern{chapter}/ ) # get chapters
     {
       my $chapters  = $comic->books( -1 )->chapters();
-      my $url       = $self->url();
+      my ( $id )    = ( $self->url() =~ /(\d+)\.html/ );
 
       next if $index < scalar @$chapters;
 
-      $url =~ s/\d+\.html/$path/;
+      my $url = "https://comicbus.live/online/comic-$id.html?ch=$index";
 
       push @$chapters, $url;
     }
@@ -91,6 +90,103 @@ sub parseIndexCore
 sub parseContentCore
 {
   my ( $self, $fh ) = @_;
+
+  my %pattern = (
+                  coreScript        => qr/<script src="\/(js\/nview\.js\?\d+)"/,
+                  magicNum          => qr/var y=(\d+);/,
+                  codeString        => qr/var cs='(\w+)'/,
+                  chapter           => qr/(\d+)\.html\?ch=(\d+)(?:-(\d+))?/,
+                  magicVar          => qr/var (\w+)\s*=\s*lc\(su\(cs,i\*y/,
+                  magicVarOffset    => qr/var \w+\s*=\s*lc\(su\(cs,i\*y\+(\d+)/,
+                  magicVarLength    => qr/var \w+\s*=\s*lc\(su\(cs,i\*y\+\d+,(\d+)/,
+                  pageNumMagicVar   => qr/ps=(\w+)/,
+                  imageUrlMagicVars => qr/'\/\/img'\+su\((\w+), 0, 1\)\+'\.8comic\.com\/'\+su\((\w+),1,1\)\+'\/'\+ti\+'\/'\+(\w+)\+'\/'\+ nn\(p\)\+'_'\+su\((\w+),mm\(p\),3\)\+'\.jpg';/,
+                );
+
+  my $magicNum;
+  my ( $comicIndex, $chapter, $pageIndex ) = ( $self->url() =~ /$pattern{chapter}/ );
+  my %magicVars;
+  my @magicVars;
+  my @magicVarOffsets;
+  my @magicVarLengths;
+  my $pageNumMagicVar;
+  my @imageUrlMagicVars;
+  my @imageUrls;
+
+  $pageIndex //= 1;
+
+  while( <$fh> )
+  {
+    if( my ( $path ) = /$pattern{coreScript}/ )
+    {
+      my    $url  = ( $self->url() =~ s/online\/.+$/$path/r );
+      my    $fh   = $self->fetchUrlToTempFile( $url );
+      local $_;
+
+      1 until not defined( $_ = <$fh> ) or /$pattern{magicNum}/;
+
+      $magicNum = $1;
+    }
+    if( my ( $codeString ) = /$pattern{codeString}/ )
+    {
+      @magicVars            = /$pattern{magicVar}/g;
+      @magicVarOffsets      = /$pattern{magicVarOffset}/g;
+      @magicVarLengths      = /$pattern{magicVarLength}/g;
+      ( $pageNumMagicVar )  = /$pattern{pageNumMagicVar}/;
+      @imageUrlMagicVars    = /$pattern{imageUrlMagicVars}/;
+
+      while( my ( $i, $magicVar ) = each @magicVars )
+      {
+        $magicVars{$magicVar} = $self->decodeCodeString(
+                                  $codeString,
+                                  ( $chapter - 1 ) * $magicNum + $magicVarOffsets[$i],
+                                  $magicVarLengths[$i] );
+      }
+      last;
+    }
+  }
+
+  my $pageNum = $self->getPageNum(  $pageNumMagicVar, %magicVars );
+
+  push @imageUrls, $self->getImageUrl( $comicIndex, $pageIndex, \@imageUrlMagicVars, %magicVars );
+
+  for( $pageIndex = 2 ; $pageIndex <= $pageNum ; ++$pageIndex )
+  {
+     my $url  = $self->url() . "-$pageIndex";
+     my $fh   = $self->fetchUrlToTempFile( $url );
+
+     while( <$fh> )
+     {
+       if( my ( $path ) = /$pattern{coreScript}/ )
+       {
+         my    $url = ( $self->url() =~ s/online\/.+$/$path/r );
+         my    $fh  = $self->fetchUrlToTempFile( $url );
+         local $_;
+
+         1 until not defined( $_ = <$fh> ) or /$pattern{magicNum}/;
+
+         $magicNum = $1;
+       }
+       if( my ( $codeString ) = /$pattern{codeString}/ )
+       {
+         @magicVars         = /$pattern{magicVar}/g;
+         @magicVarOffsets   = /$pattern{magicVarOffset}/g;
+         @magicVarLengths   = /$pattern{magicVarLength}/g;
+         @imageUrlMagicVars = /$pattern{imageUrlMagicVars}/;
+
+         while( my ( $i, $magicVar ) = each @magicVars )
+         {
+           $magicVars{$magicVar} = $self->decodeCodeString(
+                                     $codeString,
+                                     ( $chapter - 1 ) * $magicNum + $magicVarOffsets[$i],
+                                     $magicVarLengths[$i] );
+         }
+         last;
+       }
+     }
+     push @imageUrls, $self->getImageUrl( $comicIndex, $pageIndex, \@imageUrlMagicVars, %magicVars );
+  }
+  return @imageUrls;
 }
 # end public member functions
 
@@ -100,6 +196,48 @@ sub processfetchedContent
   my ( $self, $content ) = @_;
 
   return decode( 'big5', $content );
+}
+
+sub decodeCodeString
+{
+  my ( undef, $codeString, $offset, $length ) = @_;
+
+  my $map   = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  my $code  = substr $codeString, $offset, $length;
+
+  return $code if $length != 2;
+
+  my ( $front, $back ) = split //, $code;
+
+  return 8000 + index $map, $back if $front eq 'Z';
+  return ( index $map, $front ) * 52 + index $map, $back;
+}
+
+sub getPageNum
+{
+  my ( undef, $pageNumMagicVar, %magicVars ) = @_;
+
+  return $magicVars{$pageNumMagicVar};
+}
+
+sub getImageUrl
+{
+  my ( $self, $comicIndex, $pageIndex, $imageUrlMagicVarsRef, %magicVars ) = @_;
+
+  my $url = 'https://img'
+          . ( substr $magicVars{$$imageUrlMagicVarsRef[0]}, 0, 1 )
+          . '.8comic.com/'
+          . ( substr $magicVars{$$imageUrlMagicVarsRef[1]}, 1, 1 )
+          . "/$comicIndex/"
+          . $magicVars{$$imageUrlMagicVarsRef[2]} . '/'
+          . ( '0' x ( 2 - int ( log ( $pageIndex ) / log 10 ) ) ) . $pageIndex
+          . '_'
+          . ( substr  $magicVars{$$imageUrlMagicVarsRef[3]},
+                      int ( ( $pageIndex - 1 ) / 10 % 10  ) + ( $pageIndex - 1 ) % 10 * 3,
+                      3 )
+          . '.jpg';
+
+  return $url;
 }
 # end private member functions
 
