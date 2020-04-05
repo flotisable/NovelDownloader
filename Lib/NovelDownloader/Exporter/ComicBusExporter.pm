@@ -5,7 +5,16 @@ use Moose;
 
 with 'NovelDownloader::Exporter';
 
+# pragmas
+use constant MAX_TRY_TIMES => 10;
+# end pragmas
+
 # packages
+use IO::Pipe;
+use HTTP::Tiny;
+use File::Temp;
+use File::Path  qw/remove_tree/;
+
 use EBook::EPUB;
 
 use XHTML::Writer;
@@ -15,6 +24,10 @@ use XHTML::Writer;
 sub exportOrgCore;
 sub exportEpubCore;
 # end public member functions
+
+# private member functions
+sub fetchImageWithProcess;
+# end private member functions
 
 # public member functions
 sub exportOrgCore
@@ -75,21 +88,51 @@ sub exportEpubCore
       my $xhtml     = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
       my @pages     = $self->downloader()->parseContent( $chapter );
       my @images;
+      my @processInfos;
 
-      while( my ( $k, $page ) = each @pages )
+      while( my ( $i, $page ) = each @pages )
       {
+        push @processInfos, $self->fetchImageWithProcess( $i, $page );
+      }
+
+      while( my $processInfo = shift @processInfos )
+      {
+        unless( exists $processInfo->{pid} ) # recreate child process if it fails
+        {
+          push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
+          next;
+        }
+        my $c2p = $processInfo->{c2p};
+
+        waitpid $processInfo->{pid}, 0;
+
+        while( <$c2p> )
+        {
+          my ( $pageIndex, $imageFilename ) = split;
+
+          $images[$pageIndex] = $imageFilename;
+        }
+      }
+
+      while( my ( $k, $imageFilename ) = each @images )
+      {
+        next unless defined $imageFilename;
+
         my $filename = "image${ \( $i + 1 ) }_${ \( $j + 1 ) }_${ \( $k + 1 ) }.jpg";
-        my $response = $self->downloader()->http()->get( $page );
 
-        die "$page Fail!" unless $response->{success};
+        $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
+        $images[$k] = $filename;
 
-        $epub->add_image( $filename, $response->{content}, 'image/jpeg' );
-
-        push @images, $filename;
+        remove_tree( $imageFilename );
       }
 
       $xhtml->startTag( 'p' );
-      $xhtml->emptyTag( 'img', src => $_, alt => $_, height => "100%" ) for @images;
+      for my $image ( @images )
+      {
+         next unless defined $image;
+
+         $xhtml->emptyTag( 'img', src => $image, alt => $image, height => "100%" );
+      }
       $xhtml->endTag  ( 'p' );
       $xhtml->end();
 
@@ -120,12 +163,66 @@ sub exportEpubCore
                                     play_order  => $order,
                                   );
       ++$order;
-      last;
     }
   }
   $epub->pack_zip( $self->outputFileName() );
 }
 # end public member functions
+
+# private member functions
+sub fetchImageWithProcess
+{
+  my ( $self, $pageIndex, $url ) = @_;
+
+  my $c2p = IO::Pipe->new();
+  my $pid = fork;
+
+  return  {
+            pageIndex => $pageIndex,
+            url       => $url,
+          } unless defined $pid; # fail to create process
+
+  if( $pid == 0 ) # child process
+  {
+    local $@;
+
+    my $http      = HTTP::Tiny->new();
+    my $response;
+    my $fh;
+
+    for my $i ( 1 .. MAX_TRY_TIMES )
+    {
+       eval
+       {
+         $response = $http->get( $url );
+
+         die "$url Fail!\n" unless $response->{success};
+       };
+       last unless $@;
+    }
+    die $@ if $@;
+
+    $fh = File::Temp->new( UNLINK => 0 );
+
+    binmode $fh;
+    print $fh $response->{content};
+
+    $c2p->writer();
+
+    print $c2p "$pageIndex $fh";
+
+    exit;
+  }
+
+  # main process
+  $c2p->reader();
+
+  return  {
+            pid => $pid,
+            c2p => $c2p,
+          };
+}
+# end private member functions
 
 no Moose;
 1;
