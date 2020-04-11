@@ -18,7 +18,7 @@ use File::Path  qw/remove_tree/;
 use EBook::EPUB;
 
 use XHTML::Writer;
-use MultiTask::ProcessPool;
+use MultiTask::ProcessFactory;
 # end packages
 
 # public member functions
@@ -32,11 +32,17 @@ sub fetchImageWithProcess;
 # end private member functions
 
 # attributes
-has processPool =>
+has processFactory =>
 (
-  is      => 'ro',
-  isa     => 'MultiTask::ProcessPool',
-  default => sub { MultiTask::ProcessPool->new( maxProcessNum => 8 ); },
+  is      =>  'ro',
+  isa     =>  'MultiTask::ProcessFactory',
+  default =>  sub
+              {
+                MultiTask::ProcessFactory->new(
+                                                maxProcessNum => 8,
+                                                ipcToParent   => 1,
+                                              );
+              },
 );
 # end attributes
 
@@ -94,7 +100,6 @@ sub exportEpubCore
     my $bookNavPoint;
     my @chapters;
     my @processInfos;
-    my $counter = 1;
 
     while( my ( $j, $chapter ) = each @{ $book->chapters() } )
     {
@@ -166,135 +171,117 @@ sub fetchChapterWithProcess
 {
   my ( $self, $epub, $bookIndex, $chapterIndex, $url ) = @_;
 
-  my $c2p = IO::Pipe->new();
-  my $pid = $self->processPool()->fork;
+  return $self->processFactory()->generate(
+      fail  =>  sub
+                {
+                  return  {
+                            bookIndex     => $bookIndex,
+                            chapterIndex  => $chapterIndex,
+                            url           => $url,
+                          };
+                },
+      run   =>  sub
+                {
+                  my $c2p = shift;
 
-  return  {
-            bookIndex     => $bookIndex,
-            chapterIndex  => $chapterIndex,
-            url           => $url,
-          } unless defined $pid;
+                  my $fh        = File::Temp->new( UNLINK => 0 );
+                  my $xhtml     = XHTML::Writer->new( OUTPUT => $fh, DATA_MODE => 1, DATA_INDENT => 2 );
+                  my @pages     = ${ \( ref $self->downloader() ) }->new()->parseContent( $url );
+                  my @images;
+                  my @processInfos;
 
-  if( $pid == 0 ) # child process
-  {
-    my $fh        = File::Temp->new( UNLINK => 0 );
-    my $xhtml     = XHTML::Writer->new( OUTPUT => $fh, DATA_MODE => 1, DATA_INDENT => 2 );
-    my @pages     = ${ \( ref $self->downloader() ) }->new()->parseContent( $url );
-    my @images;
-    my @processInfos;
+                  while( my ( $i, $page ) = each @pages )
+                  {
+                    push @processInfos, $self->fetchImageWithProcess( $i, $page );
+                  }
 
-    while( my ( $i, $page ) = each @pages )
-    {
-      push @processInfos, $self->fetchImageWithProcess( $i, $page );
-    }
+                  while( my $processInfo = shift @processInfos )
+                  {
+                    unless( exists $processInfo->{pid} ) # recreate child process if it fails
+                    {
+                      push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
+                      next;
+                    }
+                    my $c2p = $processInfo->{c2p};
 
-    while( my $processInfo = shift @processInfos )
-    {
-      unless( exists $processInfo->{pid} ) # recreate child process if it fails
-      {
-        push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
-        next;
-      }
-      my $c2p = $processInfo->{c2p};
+                    waitpid $processInfo->{pid}, 0;
 
-      waitpid $processInfo->{pid}, 0;
+                    while( <$c2p> )
+                    {
+                      my ( $pageIndex, $imageFilename ) = split;
 
-      while( <$c2p> )
-      {
-        my ( $pageIndex, $imageFilename ) = split;
+                      $images[$pageIndex] = $imageFilename;
+                    }
+                  }
 
-        $images[$pageIndex] = $imageFilename;
-      }
-    }
+                  while( my ( $k, $imageFilename ) = each @images )
+                  {
+                    next unless defined $imageFilename;
 
-    while( my ( $k, $imageFilename ) = each @images )
-    {
-      next unless defined $imageFilename;
+                    my $filename = "image${ \( $bookIndex + 1 )}_${ \( $chapterIndex + 1 ) }_${ \( $k + 1 ) }.jpg";
 
-      my $filename = "image${ \( $bookIndex + 1 )}_${ \( $chapterIndex + 1 ) }_${ \( $k + 1 ) }.jpg";
+                    $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
+                    $images[$k] = $filename;
 
-      $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
-      $images[$k] = $filename;
+                    remove_tree( $imageFilename );
+                  }
 
-      remove_tree( $imageFilename );
-    }
+                  $xhtml->startTag( 'p' );
+                  for my $image ( @images )
+                  {
+                     next unless defined $image;
 
-    $xhtml->startTag( 'p' );
-    for my $image ( @images )
-    {
-       next unless defined $image;
+                     $xhtml->emptyTag( 'img', src => $image, alt => $image, height => "100%" );
+                  }
+                  $xhtml->endTag  ( 'p' );
+                  $xhtml->end();
 
-       $xhtml->emptyTag( 'img', src => $image, alt => $image, height => "100%" );
-    }
-    $xhtml->endTag  ( 'p' );
-    $xhtml->end();
-
-    $c2p->writer();
-
-    print $c2p "$chapterIndex $fh";
-    exit;
-  }
-
-  # main process
-  $c2p->reader();
-
-  return  {
-            pid => $pid,
-            c2p => $c2p,
-          };
+                  print $c2p "$chapterIndex $fh";
+                },
+    );
 }
 
 sub fetchImageWithProcess
 {
   my ( $self, $pageIndex, $url ) = @_;
 
-  my $c2p = IO::Pipe->new();
-  my $pid = $self->processPool()->fork();
+  return $self->processFactory()->generate(
+      fail  =>  sub
+                {
+                  return  {
+                            pageIndex => $pageIndex,
+                            url       => $url,
+                          };
+                },
+      run   =>  sub
+                {
+                  my $c2p = shift;
 
-  return  {
-            pageIndex => $pageIndex,
-            url       => $url,
-          } unless defined $pid; # fail to create process
+                  local $@;
 
-  if( $pid == 0 ) # child process
-  {
-    local $@;
+                  my $http      = HTTP::Tiny->new();
+                  my $response;
+                  my $fh;
 
-    my $http      = HTTP::Tiny->new();
-    my $response;
-    my $fh;
+                  for my $i ( 1 .. MAX_TRY_TIMES )
+                  {
+                     eval
+                     {
+                       $response = $http->get( $url );
 
-    for my $i ( 1 .. MAX_TRY_TIMES )
-    {
-       eval
-       {
-         $response = $http->get( $url );
+                       die "$url Fail!\n" unless $response->{success};
+                     };
+                     last unless $@;
+                  }
+                  die $@ if $@;
 
-         die "$url Fail!\n" unless $response->{success};
-       };
-       last unless $@;
-    }
-    die $@ if $@;
+                  $fh = File::Temp->new( UNLINK => 0 );
 
-    $fh = File::Temp->new( UNLINK => 0 );
-
-    binmode $fh;
-    print $fh $response->{content};
-
-    $c2p->writer();
-
-    print $c2p "$pageIndex $fh";
-
-    exit;
-  }
-
-  # main process
-  $c2p->reader();
-
-  return  {
-            pid => $pid,
-            c2p => $c2p,
-          };
+                  binmode $fh;
+                  print $fh   $response->{content};
+                  print $c2p  "$pageIndex $fh";
+                },
+    );
 }
 # end private member functions
 
