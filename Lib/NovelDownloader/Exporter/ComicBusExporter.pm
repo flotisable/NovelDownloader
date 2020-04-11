@@ -18,6 +18,7 @@ use File::Path  qw/remove_tree/;
 use EBook::EPUB;
 
 use XHTML::Writer;
+use MultiTask::ProcessPool;
 # end packages
 
 # public member functions
@@ -28,6 +29,15 @@ sub exportEpubCore;
 # private member functions
 sub fetchImageWithProcess;
 # end private member functions
+
+# attributes
+has processPool =>
+(
+  is      => 'ro',
+  isa     => 'MultiTask::ProcessPool',
+  default => sub { MultiTask::ProcessPool->new( maxProcessNum => 8 ); },
+);
+# end attributes
 
 # public member functions
 sub exportOrgCore
@@ -175,7 +185,7 @@ sub fetchImageWithProcess
   my ( $self, $pageIndex, $url ) = @_;
 
   my $c2p = IO::Pipe->new();
-  my $pid = fork;
+  my $pid = $self->processPool()->fork();
 
   return  {
             pageIndex => $pageIndex,
