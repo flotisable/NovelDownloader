@@ -27,6 +27,7 @@ sub exportEpubCore;
 # end public member functions
 
 # private member functions
+sub fetchChapterWithProcess;
 sub fetchImageWithProcess;
 # end private member functions
 
@@ -91,62 +92,43 @@ sub exportEpubCore
   while( my ( $i, $book ) = each @{ $comic->books() } )
   {
     my $bookNavPoint;
+    my @chapters;
+    my @processInfos;
+    my $counter = 1;
 
     while( my ( $j, $chapter ) = each @{ $book->chapters() } )
     {
-      my $filename  = "chapter${ \( $i + 1 ) }_${ \( $j + 1 ) }.xhtml";
-      my $xhtml     = XHTML::Writer->new( OUTPUT => 'self', DATA_MODE => 1, DATA_INDENT => 2 );
-      my @pages     = $self->downloader()->parseContent( $chapter );
-      my @images;
-      my @processInfos;
+      push @processInfos, $self->fetchChapterWithProcess( $epub, $i, $j, $chapter );
+    }
 
-      while( my ( $i, $page ) = each @pages )
+    while( my $processInfo = shift @processInfos )
+    {
+      unless( exists $processInfo->{pid} )
       {
-        push @processInfos, $self->fetchImageWithProcess( $i, $page );
+        push @processInfos, $self->fetchChapterWithProcess( $epub, @{ $processInfo }{qw/bookIndex chapterIndex url/} );
+        next;
       }
+      my $c2p = $processInfo->{c2p};
 
-      while( my $processInfo = shift @processInfos )
+      waitpid $processInfo->{pid}, 0;
+
+      while( <$c2p> )
       {
-        unless( exists $processInfo->{pid} ) # recreate child process if it fails
-        {
-          push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
-          next;
-        }
-        my $c2p = $processInfo->{c2p};
+        my ( $chapterIndex, $chapterFileName ) = split;
 
-        waitpid $processInfo->{pid}, 0;
-
-        while( <$c2p> )
-        {
-          my ( $pageIndex, $imageFilename ) = split;
-
-          $images[$pageIndex] = $imageFilename;
-        }
+        $chapters[$chapterIndex] = $chapterFileName;
       }
+    }
 
-      while( my ( $k, $imageFilename ) = each @images )
-      {
-        next unless defined $imageFilename;
+    while( my ( $j, $chapterFileName ) = each @chapters )
+    {
+      next unless defined $chapterFileName;
 
-        my $filename = "image${ \( $i + 1 ) }_${ \( $j + 1 ) }_${ \( $k + 1 ) }.jpg";
+      my $filename = "chapter${ \( $i + 1 ) }_${ \( $j + 1 ) }.xhtml";
 
-        $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
-        $images[$k] = $filename;
+      $epub->copy_xhtml( $chapterFileName, $filename );
 
-        remove_tree( $imageFilename );
-      }
-
-      $xhtml->startTag( 'p' );
-      for my $image ( @images )
-      {
-         next unless defined $image;
-
-         $xhtml->emptyTag( 'img', src => $image, alt => $image, height => "100%" );
-      }
-      $xhtml->endTag  ( 'p' );
-      $xhtml->end();
-
-      $epub->add_xhtml( $filename, $xhtml );
+      remove_tree( $chapterFileName );
 
       if( $j == 0 )
       {
@@ -180,6 +162,88 @@ sub exportEpubCore
 # end public member functions
 
 # private member functions
+sub fetchChapterWithProcess
+{
+  my ( $self, $epub, $bookIndex, $chapterIndex, $url ) = @_;
+
+  my $c2p = IO::Pipe->new();
+  my $pid = $self->processPool()->fork;
+
+  return  {
+            bookIndex     => $bookIndex,
+            chapterIndex  => $chapterIndex,
+            url           => $url,
+          } unless defined $pid;
+
+  if( $pid == 0 ) # child process
+  {
+    my $fh        = File::Temp->new( UNLINK => 0 );
+    my $xhtml     = XHTML::Writer->new( OUTPUT => $fh, DATA_MODE => 1, DATA_INDENT => 2 );
+    my @pages     = ${ \( ref $self->downloader() ) }->new()->parseContent( $url );
+    my @images;
+    my @processInfos;
+
+    while( my ( $i, $page ) = each @pages )
+    {
+      push @processInfos, $self->fetchImageWithProcess( $i, $page );
+    }
+
+    while( my $processInfo = shift @processInfos )
+    {
+      unless( exists $processInfo->{pid} ) # recreate child process if it fails
+      {
+        push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
+        next;
+      }
+      my $c2p = $processInfo->{c2p};
+
+      waitpid $processInfo->{pid}, 0;
+
+      while( <$c2p> )
+      {
+        my ( $pageIndex, $imageFilename ) = split;
+
+        $images[$pageIndex] = $imageFilename;
+      }
+    }
+
+    while( my ( $k, $imageFilename ) = each @images )
+    {
+      next unless defined $imageFilename;
+
+      my $filename = "image${ \( $bookIndex + 1 )}_${ \( $chapterIndex + 1 ) }_${ \( $k + 1 ) }.jpg";
+
+      $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
+      $images[$k] = $filename;
+
+      remove_tree( $imageFilename );
+    }
+
+    $xhtml->startTag( 'p' );
+    for my $image ( @images )
+    {
+       next unless defined $image;
+
+       $xhtml->emptyTag( 'img', src => $image, alt => $image, height => "100%" );
+    }
+    $xhtml->endTag  ( 'p' );
+    $xhtml->end();
+
+    $c2p->writer();
+
+    print $c2p "$chapterIndex $fh";
+    exit;
+  }
+
+  # main process
+  $c2p->reader();
+
+  return  {
+            pid => $pid,
+            c2p => $c2p,
+          };
+}
+
 sub fetchImageWithProcess
 {
   my ( $self, $pageIndex, $url ) = @_;
