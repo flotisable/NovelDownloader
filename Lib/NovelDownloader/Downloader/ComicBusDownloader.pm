@@ -34,6 +34,7 @@ sub parseContentCore;
 
 # private member functions
 sub processfetchedContent;
+sub getView;
 sub decodeCodeString;
 sub getPageNum;
 sub getImageUrl;
@@ -49,7 +50,7 @@ sub parseIndexCore
                   cover     => qr/<img src='\/(pics\/0\/\d+.jpg)' hspace="10" vspace="10" border="0" style="border:#CCCCCC solid 1px;width:240px;" \/>/,
                   authorPre => qr/作者：/,
                   author    => qr/<td nowrap="nowrap">(.+)<\/td>/,
-                  chapter   => qr/<a href='#' onclick="cview\('(\d+-(\d+)\.html)',6,1\);return false;" id="c\d+" class="Ch">/,
+                  chapter   => qr/<a href='#' onclick="cview\('(\d+-(\d+)\.html)',(\d+),(\d+)\);return false;" id="c\d+" class="Ch">/,
                 );
 
   my $comic = Comic->new( books => [ Book->new() ] );
@@ -72,14 +73,14 @@ sub parseIndexCore
 
       $comic->author( $1 );
     }
-    if( my ( $path, $index ) = /$pattern{chapter}/ ) # get chapters
+    if( my ( $path, $index, $catid, $copyright ) = /$pattern{chapter}/ ) # get chapters
     {
       my $chapters  = $comic->books( -1 )->chapters();
       my ( $id )    = ( $self->url() =~ /(\d+)\.html/ );
 
       next if $index < scalar @$chapters;
 
-      my $url = "https://comicbus.live/online/comic-$id.html?ch=$index";
+      my $url = "https://comicbus.live/online/${ \( $self->getView( $catid, $copyright ) ) }$id.html?ch=$index";
 
       push @$chapters, $url;
     }
@@ -196,6 +197,13 @@ sub processfetchedContent
   my ( $self, $content ) = @_;
 
   return decode( 'big5', $content );
+}
+
+sub getView
+{
+  my ( undef, $catid, $copyright ) = @_;
+
+  return ( $copyright == 1 && 1 <= $catid && $catid <= 22 ) ? "comic-" : "manga_";
 }
 
 sub decodeCodeString
