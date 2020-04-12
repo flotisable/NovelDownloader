@@ -19,6 +19,7 @@ use EBook::EPUB;
 
 use XHTML::Writer;
 use MultiTask::ProcessFactory;
+use MultiTask::ProcessSchedulizer;
 # end packages
 
 # public member functions
@@ -99,31 +100,28 @@ sub exportEpubCore
   {
     my $bookNavPoint;
     my @chapters;
-    my @processInfos;
 
-    while( my ( $j, $chapter ) = each @{ $book->chapters() } )
-    {
-      push @processInfos, $self->fetchChapterWithProcess( $epub, $i, $j, $chapter );
-    }
+    MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
+        $book->chapters(),
+        generate    =>  sub
+                        {
+                          my ( $j, $chapter ) = @_;
 
-    while( my $processInfo = shift @processInfos )
-    {
-      unless( exists $processInfo->{pid} )
-      {
-        push @processInfos, $self->fetchChapterWithProcess( $epub, @{ $processInfo }{qw/bookIndex chapterIndex url/} );
-        next;
-      }
-      my $c2p = $processInfo->{c2p};
+                          return $self->fetchChapterWithProcess( $epub, $i, $j, $chapter );
+                        },
+        getFailArgs =>  sub
+                        {
+                          my $processInfo = shift;
 
-      waitpid $processInfo->{pid}, 0;
+                          return @{ $processInfo }{qw/chapterIndex url/};
+                        },
+        ipcToParent =>  sub
+                        {
+                          my ( $chapterIndex, $chapterFileName ) = split;
 
-      while( <$c2p> )
-      {
-        my ( $chapterIndex, $chapterFileName ) = split;
-
-        $chapters[$chapterIndex] = $chapterFileName;
-      }
-    }
+                          $chapters[$chapterIndex] = $chapterFileName;
+                        },
+      );
 
     while( my ( $j, $chapterFileName ) = each @chapters )
     {
@@ -184,35 +182,29 @@ sub fetchChapterWithProcess
                 {
                   my $c2p = shift;
 
-                  my $fh        = File::Temp->new( UNLINK => 0 );
-                  my $xhtml     = XHTML::Writer->new( OUTPUT => $fh, DATA_MODE => 1, DATA_INDENT => 2 );
-                  my @pages     = ${ \( ref $self->downloader() ) }->new()->parseContent( $url );
                   my @images;
-                  my @processInfos;
 
-                  while( my ( $i, $page ) = each @pages )
-                  {
-                    push @processInfos, $self->fetchImageWithProcess( $i, $page );
-                  }
+                  MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
+                      [ ${ \( ref $self->downloader() ) }->new()->parseContent( $url ) ],
+                      generate    =>  sub
+                                      {
+                                        my ( $i, $page ) = @_;
 
-                  while( my $processInfo = shift @processInfos )
-                  {
-                    unless( exists $processInfo->{pid} ) # recreate child process if it fails
-                    {
-                      push @processInfos, $self->fetchImageWithProcess( @{ $processInfo }{qw/pageIndex url/} );
-                      next;
-                    }
-                    my $c2p = $processInfo->{c2p};
+                                        return $self->fetchImageWithProcess( $i, $page );
+                                      },
+                      getFailArgs =>  sub
+                                      {
+                                        my $processInfo = shift;
 
-                    waitpid $processInfo->{pid}, 0;
+                                        return @{ $processInfo }{qw/pageIndex url/};
+                                      },
+                      ipcToParent =>  sub
+                                      {
+                                        my ( $pageIndex, $imageFilename ) = split;
 
-                    while( <$c2p> )
-                    {
-                      my ( $pageIndex, $imageFilename ) = split;
-
-                      $images[$pageIndex] = $imageFilename;
-                    }
-                  }
+                                        $images[$pageIndex] = $imageFilename;
+                                      },
+                    );
 
                   while( my ( $k, $imageFilename ) = each @images )
                   {
@@ -225,6 +217,9 @@ sub fetchChapterWithProcess
 
                     remove_tree( $imageFilename );
                   }
+
+                  my $fh    = File::Temp->new( UNLINK => 0 );
+                  my $xhtml = XHTML::Writer->new( OUTPUT => $fh, DATA_MODE => 1, DATA_INDENT => 2 );
 
                   $xhtml->startTag( 'p' );
                   for my $image ( @images )
@@ -261,7 +256,6 @@ sub fetchImageWithProcess
 
                   my $http      = HTTP::Tiny->new();
                   my $response;
-                  my $fh;
 
                   for my $i ( 1 .. MAX_TRY_TIMES )
                   {
@@ -275,7 +269,7 @@ sub fetchImageWithProcess
                   }
                   die $@ if $@;
 
-                  $fh = File::Temp->new( UNLINK => 0 );
+                  my $fh = File::Temp->new( UNLINK => 0 );
 
                   binmode $fh;
                   print $fh   $response->{content};
