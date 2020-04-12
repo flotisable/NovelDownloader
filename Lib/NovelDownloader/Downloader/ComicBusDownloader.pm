@@ -78,7 +78,7 @@ sub parseIndexCore
       my $chapters  = $comic->books( -1 )->chapters();
       my ( $id )    = ( $self->url() =~ /(\d+)\.html/ );
 
-      next if $index < scalar @$chapters;
+      next if $index <= scalar @$chapters;
 
       my $url = "https://comicbus.live/online/${ \( $self->getView( $catid, $copyright ) ) }$id.html?ch=$index";
 
