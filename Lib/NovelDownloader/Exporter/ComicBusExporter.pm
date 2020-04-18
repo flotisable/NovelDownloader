@@ -28,6 +28,7 @@ sub exportEpubCore;
 # end public member functions
 
 # private member functions
+sub fetchBookWithProcess;
 sub fetchChapterWithProcess;
 sub fetchImageWithProcess;
 # end private member functions
@@ -95,35 +96,35 @@ sub exportEpubCore
   my $root;
   my $order = 1;
   my $id    = 1;
+  my @books;
 
-  while( my ( $i, $book ) = each @{ $comic->books() } )
+  MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
+      $comic->books(),
+      generate    =>  sub
+                      {
+                        my ( $i, $book ) = @_;
+
+                        return $self->fetchBookWithProcess( $epub, $i, $book );
+                      },
+      getFailArgs =>  sub
+                      {
+                        my $processInfo = shift;
+
+                        return @{ $processInfo }{qw/bookIndex book/};
+                      },
+      ipcToParent =>  sub
+                      {
+                        my ( $bookIndex, @chapters ) = split;
+
+                        $books[$bookIndex] = [@chapters];
+                      },
+    );
+
+  while( my ( $i, $book ) = each @books )
   {
     my $bookNavPoint;
-    my @chapters;
 
-    MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
-        $book->chapters(),
-        generate    =>  sub
-                        {
-                          my ( $j, $chapter ) = @_;
-
-                          return $self->fetchChapterWithProcess( $epub, $i, $j, $chapter );
-                        },
-        getFailArgs =>  sub
-                        {
-                          my $processInfo = shift;
-
-                          return @{ $processInfo }{qw/chapterIndex url/};
-                        },
-        ipcToParent =>  sub
-                        {
-                          my ( $chapterIndex, $chapterFileName ) = split;
-
-                          $chapters[$chapterIndex] = $chapterFileName;
-                        },
-      );
-
-    while( my ( $j, $chapterFileName ) = each @chapters )
+    while( my ( $j, $chapterFileName ) = each @$book )
     {
       next unless defined $chapterFileName;
 
@@ -165,6 +166,51 @@ sub exportEpubCore
 # end public member functions
 
 # private member functions
+sub fetchBookWithProcess
+{
+  my ( $self, $epub, $bookIndex, $book ) = @_;
+
+  return $self->processFactory()->generate(
+      fail  =>  sub
+                {
+                  return  {
+                            bookIndex => $bookIndex,
+                            book      => $book,
+                          };
+                },
+      run   =>  sub
+                {
+                  my $c2p = shift;
+
+                  my @chapters;
+
+                  MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
+                      $book->chapters(),
+                      generate    =>  sub
+                                      {
+                                        my ( $j, $chapter ) = @_;
+
+                                        return $self->fetchChapterWithProcess( $epub, $bookIndex, $j, $chapter );
+                                      },
+                      getFailArgs =>  sub
+                                      {
+                                        my $processInfo = shift;
+
+                                        return @{ $processInfo }{qw/chapterIndex url/};
+                                      },
+                      ipcToParent =>  sub
+                                      {
+                                        my ( $chapterIndex, $chapterFileName ) = split;
+
+                                        $chapters[$chapterIndex] = $chapterFileName;
+                                      },
+                    );
+
+                  print $c2p "$bookIndex @chapters";
+                },
+    );
+}
+
 sub fetchChapterWithProcess
 {
   my ( $self, $epub, $bookIndex, $chapterIndex, $url ) = @_;

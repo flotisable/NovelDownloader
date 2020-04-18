@@ -51,9 +51,12 @@ sub parseIndexCore
                   authorPre => qr/作者：/,
                   author    => qr/<td nowrap="nowrap">(.+)<\/td>/,
                   chapter   => qr/<a href='#' onclick="cview\('(\d+-(\d+)\.html)',(\d+),(\d+)\);return false;" id="c\d+" class="Ch">/,
+                  book      => qr/<a href='#' onclick="cview\('(\d+-(\d+)\.html)',(\d+),(\d+)\);return false;" id="c\d+" class="Vol">/,
                 );
 
-  my $comic = Comic->new( books => [ Book->new() ] );
+  my %bookReg;
+  my %chapterReg;
+  my $comic       = Comic->new( books => [ Book->new() ] );
 
   while( <$fh> )
   {
@@ -78,11 +81,29 @@ sub parseIndexCore
       my $chapters  = $comic->books( -1 )->chapters();
       my ( $id )    = ( $self->url() =~ /(\d+)\.html/ );
 
-      next if $index <= scalar @$chapters;
+      next if exists $chapterReg{$index};
 
       my $url = "https://comicbus.live/online/${ \( $self->getView( $catid, $copyright ) ) }$id.html?ch=$index";
 
       push @$chapters, $url;
+      $chapterReg{$index} = 1;
+    }
+    if( my ( $path, $index, $catid, $copyright ) = /$pattern{book}/ ) # get books
+    {
+      my $book      = Book->new();
+      my $chapters  = $book->chapters();
+
+      my ( $id )    = ( $self->url() =~ /(\d+)\.html/ );
+
+      next if exists $bookReg{$index};
+
+      my $url = "https://comicbus.live/online/${ \( $self->getView( $catid, $copyright ) ) }$id.html?ch=$index";
+
+      push @$chapters, $url;
+      push @{ $comic->books() }, $book;
+
+      $bookReg{$index}            = 1;
+      @{ $comic->books() }[-1,-2] = @{ $comic->books() }[-2,-1];
     }
   }
   return $comic;
