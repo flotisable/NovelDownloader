@@ -224,6 +224,7 @@ sub getView
 {
   my ( undef, $catid, $copyright ) = @_;
 
+  return "comic-";
   return ( $copyright == 1 && 1 <= $catid && $catid <= 22 ) ? "comic-" : "manga_";
 }
 

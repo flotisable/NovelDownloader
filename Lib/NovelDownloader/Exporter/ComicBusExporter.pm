@@ -13,7 +13,8 @@ use constant MAX_TRY_TIMES => 10;
 use IO::Pipe;
 use HTTP::Tiny;
 use File::Temp;
-use File::Path  qw/remove_tree/;
+use File::Path      qw/remove_tree/;
+use File::Basename;
 
 use EBook::EPUB;
 
@@ -76,35 +77,28 @@ sub exportEpubCore
 {
   my ( $self, $comic ) = @_;
 
-  my $epub      = EBook::EPUB->new();
-  my $coverUrl  = $comic->cover();
-
-  # setup meta datas
-  $epub->add_title    ( $comic->title () );
-  $epub->add_author   ( $comic->author() );
-  $epub->add_language ( 'zh_TW' );
-
+  my $coverUrl = $comic->cover();
   my $response = $self->downloader()->http()->get( $coverUrl );
 
   die "$coverUrl Fail!" unless $response->{success};
 
-  my $coverId = $epub->add_image( 'cover.jpg', $response->{content}, 'image/jpeg' );
+  my $fh = File::Temp->new( UNLINK => 0 );
 
-  $epub->add_meta_item( 'cover', $coverId );
-  # end setup meta datas
+  binmode $fh;
+  print $fh $response->{content};
 
-  my $root;
-  my $order = 1;
-  my $id    = 1;
-  my @books;
-
-  MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
+  MultiTask::ProcessSchedulizer->new()->schedule(
       $comic->books(),
       generate    =>  sub
                       {
                         my ( $i, $book ) = @_;
 
-                        return $self->fetchBookWithProcess( $epub, $i, $book );
+                        return $self->fetchBookWithProcess( $comic->title (),
+                                                            $comic->author(),
+                                                            "$fh",
+                                                            scalar @{ $comic->books() },
+                                                            $i,
+                                                            $book );
                       },
       getFailArgs =>  sub
                       {
@@ -112,63 +106,18 @@ sub exportEpubCore
 
                         return @{ $processInfo }{qw/bookIndex book/};
                       },
-      ipcToParent =>  sub
-                      {
-                        my ( $bookIndex, @chapters ) = split;
-
-                        $books[$bookIndex] = [@chapters];
-                      },
     );
 
-  while( my ( $i, $book ) = each @books )
-  {
-    my $bookNavPoint;
+  remove_tree( "$fh" );
 
-    while( my ( $j, $chapterFileName ) = each @$book )
-    {
-      next unless defined $chapterFileName;
-
-      my $filename = "chapter${ \( $i + 1 ) }_${ \( $j + 1 ) }.xhtml";
-
-      $epub->copy_xhtml( $chapterFileName, $filename );
-
-      remove_tree( $chapterFileName );
-
-      if( $j == 0 )
-      {
-        if( $i == 0 )
-        {
-          $root = $epub->add_navpoint (
-                                        label       => 'Root',
-                                        id          => "id_${ \( $id++ )}",
-                                        content     => $filename,
-                                        play_order  => $order,
-                                      );
-        }
-        $bookNavPoint = $root->add_navpoint (
-                                              label       => ( $i == $#{ $comic->books() } ) ? "Other" : "Volume ${ \( $i + 1 ) }",
-                                              id          => "id_${ \( $id++ ) }",
-                                              content     => $filename,
-                                              play_order  => $order,
-                                            );
-      }
-      $bookNavPoint->add_navpoint (
-                                    label       => "Chapter ${ \( $j + 1 ) }",
-                                    id          => "id_${ \( $id++ ) }",
-                                    content     => $filename,
-                                    play_order  => $order,
-                                  );
-      ++$order;
-    }
-  }
-  $epub->pack_zip( $self->outputFileName() );
+  sleep 1 until wait == -1;
 }
 # end public member functions
 
 # private member functions
 sub fetchBookWithProcess
 {
-  my ( $self, $epub, $bookIndex, $book ) = @_;
+  my ( $self, $title, $author, $cover, $bookNum, $bookIndex, $book ) = @_;
 
   return $self->processFactory()->generate(
       fail  =>  sub
@@ -180,8 +129,25 @@ sub fetchBookWithProcess
                 },
       run   =>  sub
                 {
-                  my $c2p = shift;
+                  srand $bookIndex; # set seed of rand to make tempfile generation successful
 
+                  return if scalar $book->chapters() == 0; # do not generate epub file for empty book
+
+                  my $epub = EBook::EPUB->new();
+
+                  # setup meta datas
+                  $epub->add_title    ( $title  );
+                  $epub->add_author   ( $author );
+                  $epub->add_language ( 'zh_TW' );
+
+                  my $coverId = $epub->copy_image( $cover, 'cover.jpg', 'image/jpeg' );
+
+                  $epub->add_meta_item( 'cover', $coverId );
+                  # end setup meta datas
+
+                  my $root;
+                  my $order     = 1;
+                  my $id        = 1;
                   my @chapters;
 
                   MultiTask::ProcessSchedulizer->new( ipcToParent => 1 )->schedule(
@@ -190,7 +156,7 @@ sub fetchBookWithProcess
                                       {
                                         my ( $j, $chapter ) = @_;
 
-                                        return $self->fetchChapterWithProcess( $epub, $bookIndex, $j, $chapter );
+                                        return $self->fetchChapterWithProcess( $epub, $j, $chapter );
                                       },
                       getFailArgs =>  sub
                                       {
@@ -206,20 +172,55 @@ sub fetchBookWithProcess
                                       },
                     );
 
-                  print $c2p "$bookIndex @chapters";
+                  while( my ( $j, $chapterFileName ) = each @chapters )
+                  {
+                    next unless defined $chapterFileName;
+
+                    my $filename = "chapter${ \( $j + 1 ) }.xhtml";
+
+                    $epub->copy_xhtml( $chapterFileName, $filename );
+
+                    remove_tree( $chapterFileName );
+
+                    if( $j == 0 )
+                    {
+                      $root = $epub->add_navpoint (
+                                                    label       => 'Root',
+                                                    id          => "id_${ \( $id++ )}",
+                                                    content     => $filename,
+                                                    play_order  => $order,
+                                                  );
+                    }
+                    $root->add_navpoint (
+                                          label       => "Chapter ${ \( $j + 1 ) }",
+                                          id          => "id_${ \( $id++ ) }",
+                                          content     => $filename,
+                                          play_order  => $order,
+                                        );
+                    ++$order;
+                  }
+
+                  my ( $filename, $dir, $suffix ) = fileparse( $self->outputFileName(), qr/\.\w+/ );
+                  my $outputFileNameSuffix        = "";
+
+                  if( $bookNum > 1 )
+                  {
+                    $outputFileNameSuffix = ( $bookIndex == $bookNum - 1 ) ?  "Other":
+                                                                              "${ \( $bookIndex + 1 ) }";
+                  }
+                  $epub->pack_zip( "${dir}${filename}${outputFileNameSuffix}${suffix}" );
                 },
     );
 }
 
 sub fetchChapterWithProcess
 {
-  my ( $self, $epub, $bookIndex, $chapterIndex, $url ) = @_;
+  my ( $self, $epub, $chapterIndex, $url ) = @_;
 
   return $self->processFactory()->generate(
       fail  =>  sub
                 {
                   return  {
-                            bookIndex     => $bookIndex,
                             chapterIndex  => $chapterIndex,
                             url           => $url,
                           };
@@ -256,7 +257,7 @@ sub fetchChapterWithProcess
                   {
                     next unless defined $imageFilename;
 
-                    my $filename = "image${ \( $bookIndex + 1 )}_${ \( $chapterIndex + 1 ) }_${ \( $k + 1 ) }.jpg";
+                    my $filename = "image${ \( $chapterIndex + 1 ) }_${ \( $k + 1 ) }.jpg";
 
                     $epub->copy_image( $imageFilename, $filename, 'image/jpeg' );
                     $images[$k] = $filename;
